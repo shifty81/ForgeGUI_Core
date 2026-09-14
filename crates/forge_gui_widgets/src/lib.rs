@@ -5,9 +5,20 @@
 
 #![forbid(unsafe_code)]
 
-use egui::{Id, Response, RichText, Ui};
+use egui::{Button, Id, Response, RichText, Ui, Vec2};
 use egui_extras::{Column, TableBuilder};
 use forge_gui_icons::IconId;
+use forge_gui_theme::ForgeTheme;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WidgetTone {
+    #[default]
+    Neutral,
+    Accent,
+    Success,
+    Warning,
+    Danger,
+}
 
 /// Extend a host-owned font definition with the default ForgeGUI icon family.
 ///
@@ -64,6 +75,80 @@ pub fn labeled_icon_button(ui: &mut Ui, icon: IconId, label: &str) -> Response {
     ui.button(format!("{} {label}", icon_text(icon)))
 }
 
+pub fn tool_button(
+    ui: &mut Ui,
+    icon: IconId,
+    label: &str,
+    active: bool,
+    tone: WidgetTone,
+    theme: &ForgeTheme,
+) -> Response {
+    let metrics = theme.effective_metrics();
+    let fill = if active {
+        color(theme.base.panel_raised)
+    } else {
+        color(theme.base.panel)
+    };
+    let text = match tone {
+        WidgetTone::Neutral => theme.base.text,
+        WidgetTone::Accent => theme.base.accent,
+        WidgetTone::Success => theme.base.success,
+        WidgetTone::Warning => theme.base.warning,
+        WidgetTone::Danger => theme.base.danger,
+    };
+    let button =
+        Button::new(RichText::new(format!("{}  {label}", icon_text(icon))).color(color(text)))
+            .selected(active)
+            .fill(fill)
+            .min_size(Vec2::new(0.0, metrics.action_bar_height - 8.0))
+            .corner_radius(6);
+    ui.add(button)
+}
+
+pub fn compact_tool_button(
+    ui: &mut Ui,
+    icon: IconId,
+    tooltip: &str,
+    active: bool,
+    theme: &ForgeTheme,
+) -> Response {
+    let metrics = theme.effective_metrics();
+    let fill = if active {
+        color(theme.base.panel_raised)
+    } else {
+        color(theme.base.panel)
+    };
+    ui.add(
+        Button::new(RichText::new(icon_text(icon)).size(metrics.icon_size))
+            .selected(active)
+            .fill(fill)
+            .min_size(Vec2::splat(metrics.action_bar_height - 8.0))
+            .corner_radius(6),
+    )
+    .on_hover_text(tooltip)
+}
+
+pub fn badge(ui: &mut Ui, text: &str, tone: WidgetTone, theme: &ForgeTheme) -> Response {
+    let background = match tone {
+        WidgetTone::Neutral => theme.base.panel_raised,
+        WidgetTone::Accent => theme.base.accent,
+        WidgetTone::Success => theme.base.success,
+        WidgetTone::Warning => theme.base.warning,
+        WidgetTone::Danger => theme.base.danger,
+    };
+    let foreground = if matches!(tone, WidgetTone::Neutral) {
+        theme.base.text
+    } else {
+        theme.base.background
+    };
+    ui.add(
+        Button::new(RichText::new(text).small().color(color(foreground)))
+            .fill(color(background))
+            .corner_radius(10)
+            .frame(true),
+    )
+}
+
 /// Virtualized table adapter for large project/file/asset/log/data sets.
 ///
 /// Only visible body rows are constructed by `egui_extras::TableBody::rows`.
@@ -109,6 +194,10 @@ pub fn virtual_table(
         });
 }
 
+fn color(value: forge_gui_core::Rgba) -> egui::Color32 {
+    egui::Color32::from_rgba_unmultiplied(value.0, value.1, value.2, value.3)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,9 +211,6 @@ mod tests {
 
     #[test]
     fn semantic_icon_adapter_keeps_a_nonempty_forward_compatible_fallback() {
-        // IconId is #[non_exhaustive] by design. The adapter therefore keeps a
-        // wildcard fallback so adding a future semantic icon cannot break every
-        // downstream backend with an exhaustive-match compile error.
         assert!(!IconId::Info.fallback().is_empty());
     }
 }

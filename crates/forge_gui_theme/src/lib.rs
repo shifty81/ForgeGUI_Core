@@ -4,6 +4,130 @@
 use forge_gui_core::{Rgba, ThemeTokens};
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ForgeDensity {
+    Compact,
+    #[default]
+    Standard,
+    Comfortable,
+}
+
+impl ForgeDensity {
+    pub const fn scale(self) -> f32 {
+        match self {
+            Self::Compact => 0.90,
+            Self::Standard => 1.0,
+            Self::Comfortable => 1.12,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ForgeMetrics {
+    pub product_bar_height: f32,
+    pub menu_bar_height: f32,
+    pub action_bar_height: f32,
+    pub workspace_tab_height: f32,
+    pub panel_header_height: f32,
+    pub asset_row_height: f32,
+    pub property_row_height: f32,
+    pub bottom_tab_height: f32,
+    pub status_bar_height: f32,
+    pub splitter_width: f32,
+    pub icon_size: f32,
+    pub panel_padding: i8,
+    pub outer_gap: f32,
+}
+
+impl Default for ForgeMetrics {
+    fn default() -> Self {
+        Self {
+            product_bar_height: 30.0,
+            menu_bar_height: 26.0,
+            action_bar_height: 38.0,
+            workspace_tab_height: 32.0,
+            panel_header_height: 30.0,
+            asset_row_height: 28.0,
+            property_row_height: 30.0,
+            bottom_tab_height: 28.0,
+            status_bar_height: 24.0,
+            splitter_width: 4.0,
+            icon_size: 16.0,
+            panel_padding: 6,
+            outer_gap: 4.0,
+        }
+    }
+}
+
+impl ForgeMetrics {
+    pub fn scaled(self, factor: f32) -> Self {
+        let factor = factor.max(0.5);
+        Self {
+            product_bar_height: self.product_bar_height * factor,
+            menu_bar_height: self.menu_bar_height * factor,
+            action_bar_height: self.action_bar_height * factor,
+            workspace_tab_height: self.workspace_tab_height * factor,
+            panel_header_height: self.panel_header_height * factor,
+            asset_row_height: self.asset_row_height * factor,
+            property_row_height: self.property_row_height * factor,
+            bottom_tab_height: self.bottom_tab_height * factor,
+            status_bar_height: self.status_bar_height * factor,
+            splitter_width: self.splitter_width * factor,
+            icon_size: self.icon_size * factor,
+            panel_padding: self.panel_padding,
+            outer_gap: self.outer_gap * factor,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ChromeTokens {
+    pub shell: Rgba,
+    pub product_bar: Rgba,
+    pub menu_bar: Rgba,
+    pub action_bar: Rgba,
+    pub workspace_tabs: Rgba,
+    pub panel_header: Rgba,
+    pub bottom_tray: Rgba,
+    pub status_bar: Rgba,
+    pub canvas: Rgba,
+    pub separator: Rgba,
+}
+
+impl Default for ChromeTokens {
+    fn default() -> Self {
+        Self {
+            shell: Rgba(12, 15, 19, 255),
+            product_bar: Rgba(18, 22, 28, 255),
+            menu_bar: Rgba(21, 26, 32, 255),
+            action_bar: Rgba(24, 30, 37, 255),
+            workspace_tabs: Rgba(18, 22, 28, 255),
+            panel_header: Rgba(29, 35, 43, 255),
+            bottom_tray: Rgba(18, 23, 29, 255),
+            status_bar: Rgba(14, 18, 22, 255),
+            canvas: Rgba(12, 15, 19, 255),
+            separator: Rgba(57, 67, 79, 255),
+        }
+    }
+}
+
+impl ChromeTokens {
+    fn forge_dark(base: &ThemeTokens) -> Self {
+        Self {
+            shell: Rgba(12, 15, 19, 255),
+            product_bar: Rgba(18, 22, 28, 255),
+            menu_bar: Rgba(21, 26, 32, 255),
+            action_bar: Rgba(24, 30, 37, 255),
+            workspace_tabs: Rgba(18, 22, 28, 255),
+            panel_header: Rgba(29, 35, 43, 255),
+            bottom_tray: Rgba(18, 23, 29, 255),
+            status_bar: Rgba(14, 18, 22, 255),
+            canvas: base.panel_recessed,
+            separator: base.border,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SurfaceRole {
     Sunken,
@@ -33,33 +157,44 @@ pub struct ForgeTheme {
     pub base: ThemeTokens,
     pub density_scale: f32,
     pub motion_scale: f32,
+    #[serde(default)]
+    pub density: ForgeDensity,
+    #[serde(default)]
+    pub metrics: ForgeMetrics,
+    #[serde(default)]
+    pub chrome: ChromeTokens,
 }
 
 impl ForgeTheme {
     pub fn forge_dark() -> Self {
+        let base = ThemeTokens {
+            background: Rgba(17, 20, 25, 255),
+            panel: Rgba(23, 28, 35, 255),
+            panel_raised: Rgba(31, 37, 45, 255),
+            panel_recessed: Rgba(12, 15, 19, 255),
+            border: Rgba(57, 67, 79, 255),
+            border_focus: Rgba(72, 230, 161, 255),
+            text: Rgba(229, 235, 242, 255),
+            text_muted: Rgba(148, 160, 174, 255),
+            accent: Rgba(72, 230, 161, 255),
+            success: Rgba(73, 218, 145, 255),
+            warning: Rgba(236, 183, 74, 255),
+            danger: Rgba(240, 95, 109, 255),
+            status_height: 26.0,
+            toolbar_height: 40.0,
+            corner_radius: 8.0,
+            scrollbar_width: 11.0,
+        };
+
         Self {
             id: "forge.theme.dark".into(),
             label: "Forge Dark".into(),
-            base: ThemeTokens {
-                background: Rgba(17, 20, 25, 255),
-                panel: Rgba(23, 28, 35, 255),
-                panel_raised: Rgba(31, 37, 45, 255),
-                panel_recessed: Rgba(12, 15, 19, 255),
-                border: Rgba(57, 67, 79, 255),
-                border_focus: Rgba(72, 230, 161, 255),
-                text: Rgba(229, 235, 242, 255),
-                text_muted: Rgba(148, 160, 174, 255),
-                accent: Rgba(72, 230, 161, 255),
-                success: Rgba(73, 218, 145, 255),
-                warning: Rgba(236, 183, 74, 255),
-                danger: Rgba(240, 95, 109, 255),
-                status_height: 26.0,
-                toolbar_height: 40.0,
-                corner_radius: 8.0,
-                scrollbar_width: 11.0,
-            },
+            chrome: ChromeTokens::forge_dark(&base),
+            base,
             density_scale: 1.0,
             motion_scale: 1.0,
+            density: ForgeDensity::Standard,
+            metrics: ForgeMetrics::default(),
         }
     }
 
@@ -72,6 +207,7 @@ impl ForgeTheme {
         theme.base.panel_raised = Rgba(37, 37, 41, 255);
         theme.base.accent = Rgba(117, 163, 255, 255);
         theme.base.border_focus = theme.base.accent;
+        theme.chrome = ChromeTokens::forge_dark(&theme.base);
         theme
     }
 
@@ -84,7 +220,13 @@ impl ForgeTheme {
         theme.base.panel_raised = Rgba(28, 31, 36, 255);
         theme.base.border = Rgba(98, 109, 123, 255);
         theme.base.text = Rgba(248, 250, 252, 255);
+        theme.chrome = ChromeTokens::forge_dark(&theme.base);
         theme
+    }
+
+    pub fn effective_metrics(&self) -> ForgeMetrics {
+        self.metrics
+            .scaled(self.density.scale() * self.density_scale.max(0.5))
     }
 
     pub fn surface(&self, role: SurfaceRole) -> SurfaceTokens {
@@ -142,5 +284,15 @@ mod tests {
     fn high_contrast_keeps_focus_accent() {
         let theme = ForgeTheme::high_contrast();
         assert_eq!(theme.base.border_focus, theme.base.accent);
+    }
+
+    #[test]
+    fn compact_density_reduces_creator_metrics() {
+        let mut theme = ForgeTheme::forge_dark();
+        let standard = theme.effective_metrics();
+        theme.density = ForgeDensity::Compact;
+        let compact = theme.effective_metrics();
+        assert!(compact.action_bar_height < standard.action_bar_height);
+        assert!(compact.asset_row_height < standard.asset_row_height);
     }
 }

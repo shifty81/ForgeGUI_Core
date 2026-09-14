@@ -1,8 +1,8 @@
 # ForgeGUI_Core Current Pass Baseline
 
-Target: independent, modular authoring/runtime/UI foundation for all applications.
+Target: independent, modular authoring/runtime/UI foundation for all applications and games.
 
-## Completed in the current cumulative batch
+## Completed cumulative foundation
 
 ### FG-C01…FG-C20 — shared GUI/workbench foundation
 
@@ -44,30 +44,37 @@ Target: independent, modular authoring/runtime/UI foundation for all application
 - Simulate / PIE / Play From Here / Detached / Standalone / Headless bridge
 - independent ForgeAuthoring Lab
 
-## Critical recovery included
+## FG-C41…FG-C55 — Creator Studio / universal renderer workspace
 
-This cumulative patch also repairs the accidental Phase-1 migration overwrite:
+- C41 creator density and metric tokens
+- C42 dedicated product/menu/action/workspace/panel/tray/status chrome tokens
+- C43 reusable panel frame/header primitive
+- C44 reusable section/header and panel action model
+- C45 creator action/compact tool widgets and status badges
+- C46 Creator Studio product/menu/action chrome
+- C47 workspace tab strip and creator tab model
+- C48 status bar and bottom tool-tray chrome
+- C49 durable `forge.workspace_layout.v1` layout schema and presets
+- C50 renderer surface family contract for 2D / 2.5D / 3D / Voxel / Hybrid workflows
+- C51 frame scheduling and focused/visible/obscured/hidden render-surface lifecycle
+- C52 renderer-backed `RenderSurfaceHost` wrapping the universal `RenderBackend` contract
+- C53 reusable renderer workspace widget with local tools and authoring overlays
+- C54 rebuilt Creator Studio Lab with Inspector-left / Assets-right / renderer-center / tools-bottom workflow
+- C55 cumulative strict-Clippy cleanup for the remaining authoring test plus first-pass Creator Studio integration
 
-- restores the mature ForgeGUI 0.4.8 root workspace identity
-- restores mature `forge_gui_core`
-- restores mature `forge_gui_widgets`
-- removes the duplicate Phase-1 `apps/gui_lab`
-- removes obsolete Phase-1 rail/surface source files from `forge_gui_widgets`
-- keeps the new work additive in dedicated shared crates
-
-## FG-C41 onward
+## FG-C56 onward
 
 Next focus:
 
-1. real `egui_dock` central document workbench integration
-2. dock compass / drop previews / pin / soft-lock / detach / maximize / auto-hide
-3. persisted named layouts and monitor/DPI-safe recovery
-4. 2D world-space/screen-space camera math and precise picking
-5. 3D matrix math / ray construction / precise picking
-6. transform gizmo manipulation transactions
-7. hierarchy/outliner drag-reparent
-8. reusable renderer bridge for GPU-backed 2D/3D targets
-9. runtime asset service + hot reload contracts
-10. editor runtime overlays / debug draw
-11. Play From Here spawn/camera override semantics
-12. screenshot/DPI/keyboard certification for all authoring modes
+1. GPU-backed surface presenter/texture bridge for wgpu/OpenGL/custom game renderers
+2. real `egui_dock` structural docking for Inspector/Assets/Outliner/tool-tray regions
+3. Asset Browser Quick Access / Favorites / Recent / tags / saved searches / grid thumbnails
+4. Inspector sections, history, pinned instances, mixed-value multi-selection
+5. universal SelectionService linking renderer, Outliner, Inspector and Asset Browser
+6. Outliner/Layers hierarchy and drag-reparent
+7. precise 2D world/screen math and 3D ray construction/picking
+8. transform gizmo manipulation transactions
+9. workspace layout persistence/import/export and monitor/DPI-safe restore
+10. multi-render-surface and detached native workspaces
+11. actual PIE/runtime renderer switching through the same surface host
+12. interaction/screenshot/DPI/accessibility certification for Creator Studio

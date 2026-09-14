@@ -1220,13 +1220,19 @@ version = "0.4.8"
 dependencies = [
  "egui",
  "forge_gui_canvas",
+ "forge_gui_chrome",
  "forge_gui_console",
  "forge_gui_core",
  "forge_gui_egui",
  "forge_gui_icons",
+ "forge_gui_layout",
  "forge_gui_notify",
+ "forge_gui_panels",
  "forge_gui_pie",
+ "forge_gui_theme",
  "forge_gui_widgets",
+ "forge_gui_workspace",
+ "forge_render_surface",
 ]
 
 [[package]]
@@ -1244,6 +1250,17 @@ name = "forge_gui_canvas"
 version = "0.4.8"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "forge_gui_chrome"
+version = "0.4.8"
+dependencies = [
+ "egui",
+ "forge_gui_core",
+ "forge_gui_icons",
+ "forge_gui_theme",
+ "forge_gui_widgets",
 ]
 
 [[package]]
@@ -1314,18 +1331,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_gui_layout"
+version = "0.4.8"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "forge_gui_next_lab"
 version = "0.4.8"
 dependencies = [
  "eframe",
  "forge_gui_browser",
+ "forge_gui_chrome",
  "forge_gui_command",
  "forge_gui_core",
- "forge_gui_document_map",
+ "forge_gui_icons",
  "forge_gui_inspector",
- "forge_gui_rails",
+ "forge_gui_layout",
+ "forge_gui_panels",
  "forge_gui_theme",
- "forge_gui_workbench",
+ "forge_gui_widgets",
+ "forge_gui_workspace",
+ "forge_render_core",
+ "forge_render_surface",
+ "forge_scene_core",
 ]
 
 [[package]]
@@ -1346,6 +1376,17 @@ dependencies = [
  "egui_ltreeview",
  "egui_tiles",
  "forge_gui_icons",
+ "forge_gui_widgets",
+]
+
+[[package]]
+name = "forge_gui_panels"
+version = "0.4.8"
+dependencies = [
+ "egui",
+ "forge_gui_core",
+ "forge_gui_icons",
+ "forge_gui_theme",
  "forge_gui_widgets",
 ]
 
@@ -1396,7 +1437,9 @@ dependencies = [
  "egui",
  "egui-phosphor",
  "egui_extras",
+ "forge_gui_core",
  "forge_gui_icons",
+ "forge_gui_theme",
 ]
 
 [[package]]
@@ -1410,9 +1453,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_gui_workspace"
+version = "0.4.8"
+dependencies = [
+ "egui",
+ "forge_gui_core",
+ "forge_gui_icons",
+ "forge_gui_theme",
+ "forge_gui_widgets",
+ "forge_render_core",
+ "forge_render_surface",
+ "serde",
+]
+
+[[package]]
 name = "forge_render_core"
 version = "0.4.8"
 dependencies = [
+ "forge_scene_core",
+ "serde",
+]
+
+[[package]]
+name = "forge_render_surface"
+version = "0.4.8"
+dependencies = [
+ "forge_render_core",
  "forge_scene_core",
  "serde",
 ]
