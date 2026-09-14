@@ -1,0 +1,10 @@
+[package]
+name = "forge_gui_lab"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[dependencies]
+# Intentionally no direct `egui` dependency: the Lab certifies the public `forge_gui::egui` facade.
+eframe = { version = "=0.36.2", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland", "x11"] }
+forge_gui = { path = "../../crates/forge_gui" }

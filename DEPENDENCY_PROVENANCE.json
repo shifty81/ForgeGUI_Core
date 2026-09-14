@@ -1,0 +1,61 @@
+{
+  "schema": "forgegui.dependency_provenance.v1",
+  "generated": "2026-09-14",
+  "dependencies": [
+    {
+      "name": "egui",
+      "version": "0.36.2",
+      "role": "renderer",
+      "license": "MIT OR Apache-2.0"
+    },
+    {
+      "name": "eframe",
+      "version": "0.36.2",
+      "role": "native reference host",
+      "license": "MIT OR Apache-2.0"
+    },
+    {
+      "name": "egui_dock",
+      "version": "0.21.1",
+      "role": "current docking adapter",
+      "license": "MIT"
+    },
+    {
+      "name": "egui_extras",
+      "version": "0.36.2",
+      "role": "virtual table adapter",
+      "license": "MIT OR Apache-2.0"
+    },
+    {
+      "name": "egui-phosphor",
+      "version": "0.14.0",
+      "role": "semantic icon renderer adapter",
+      "license": "MIT OR Apache-2.0; Phosphor Icons MIT"
+    },
+    {
+      "name": "egui_ltreeview",
+      "version": "0.9.0",
+      "role": "evaluation lane",
+      "license": "MIT"
+    },
+    {
+      "name": "egui_tiles",
+      "version": "0.17.1",
+      "role": "layout-engine bakeoff",
+      "license": "MIT OR Apache-2.0"
+    },
+    {
+      "name": "egui_kittest",
+      "version": "0.36.1",
+      "role": "test-only evaluation lane",
+      "license": "MIT OR Apache-2.0"
+    },
+    {
+      "name": "serde",
+      "version": "1",
+      "role": "serialization",
+      "license": "MIT OR Apache-2.0"
+    }
+  ],
+  "policy": "ForgeGUI public durable formats never serialize third-party implementation types."
+}

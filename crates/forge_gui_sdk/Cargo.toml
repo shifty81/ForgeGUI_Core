@@ -1,0 +1,8 @@
+[package]
+name = "forge_gui_sdk"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[dependencies]
+forge_gui = { path = "../forge_gui" }

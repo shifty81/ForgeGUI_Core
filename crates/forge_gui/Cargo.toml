@@ -1,0 +1,16 @@
+[package]
+name = "forge_gui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[dependencies]
+egui.workspace = true
+forge_gui_core = { path = "../forge_gui_core" }
+forge_gui_icons = { path = "../forge_gui_icons" }
+forge_gui_widgets = { path = "../forge_gui_widgets" }
+forge_gui_canvas = { path = "../forge_gui_canvas" }
+forge_gui_console = { path = "../forge_gui_console" }
+forge_gui_notify = { path = "../forge_gui_notify" }
+forge_gui_pie = { path = "../forge_gui_pie" }
+forge_gui_egui = { path = "../forge_gui_egui" }

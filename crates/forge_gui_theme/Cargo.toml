@@ -1,0 +1,10 @@
+[package]
+name = "forge_gui_theme"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+forge_gui_core = { path = "../forge_gui_core" }
+serde.workspace = true

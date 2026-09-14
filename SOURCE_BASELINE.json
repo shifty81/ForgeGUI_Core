@@ -1,0 +1,20 @@
+{
+  "schema": "forgegui_core.clean_source.v1",
+  "project": "ForgeGUI_Core",
+  "version": "0.4.8",
+  "date": "2026-09-14",
+  "source": "user working folder ForgeGui Core.zip with target removed",
+  "foundation": "FG-C01..FG-C40",
+  "clean_reset": true,
+  "removed": [
+    "target/",
+    ".git/",
+    "artifacts/",
+    "forgegui-baseline.manifest.json",
+    "pending root patch transports"
+  ],
+  "canonical_repository": "https://github.com/shifty81/ForgeGUI_Core.git",
+  "repository_exists_in_connected_github_at_packaging": false,
+  "rust_compile_in_artifact_environment": false,
+  "certification_authority": "PROJECT_CONTROL_CENTER.cmd -> Full Gate"
+}

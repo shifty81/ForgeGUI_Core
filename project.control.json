@@ -1,0 +1,111 @@
+{
+  "schema": "forge.project.v1",
+  "project": "ForgeGUI_Core",
+  "version": "0.4.8",
+  "provider": {
+    "id": "forge.internal_pcc.v1",
+    "version": "0.4.8",
+    "kind": "powershell",
+    "entrypoint": "tools/pcc/ForgeGuiControl.ps1",
+    "status_command": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/pcc/ForgeGuiControl.ps1 -Operation status-json",
+    "health_command": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/pcc/ForgeGuiControl.ps1 -Operation health-json",
+    "capabilities_command": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/pcc/ForgeGuiControl.ps1 -Operation capabilities-json",
+    "operations_command": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/pcc/ForgeGuiControl.ps1 -Operation operations-json"
+  },
+  "entrypoint": "PROJECT_CONTROL_CENTER.cmd",
+  "gate": {
+    "operation": "gate.full",
+    "read_only": "after-manifest-proven-bootstrap",
+    "format_policy": "manifest-gated-one-time-bootstrap-canonicalization-then-check-only",
+    "green_receipt": "artifacts/certification/current-green.json",
+    "green_source_fingerprint_required_for_push": true,
+    "cargo_lock_policy": "repair-only-on-explicit-stale-lock-diagnostic-then-recertify-locked",
+    "package_manifest_verification": true,
+    "pcc_self_test": true,
+    "bootstrap_format_authority": "PACKAGE_MANIFEST.json:format_state=requires-canonicalization"
+  },
+  "patch_intake": {
+    "glob": "*.patch",
+    "startup_prompt": true,
+    "explicit_approval": true,
+    "archive": "artifacts/patches/applied",
+    "failed_policy": "leave-pending",
+    "ordered_one_per_session": true,
+    "restart_after_apply": true,
+    "stop_on_decline": true,
+    "stop_on_failure": true,
+    "restart_exit_policy": "clean-exit-0-after-single-success",
+    "safe_path_validation": true,
+    "transactional_backup": true,
+    "rollback": true,
+    "receipt_schema": "forge.patch.receipt.v2",
+    "rollback_fail_closed_on_postimage_drift": true,
+    "zip_glob": "*.zip",
+    "zip_single_patch_only": true,
+    "transport_archive": "artifacts/patches/transports"
+  },
+  "root_hygiene": {
+    "schema": "forge.root_hygiene.v1",
+    "authority_manifest": "PACKAGE_MANIFEST.json",
+    "patch_intake_precedes_hygiene": true,
+    "non_fatal": true,
+    "unknown_policy": "warn-and-leave",
+    "source_backup_patterns": [
+      "*.pre-*.bak",
+      "*.orig",
+      "*.rej"
+    ]
+  },
+  "operations": [
+    "gate.full",
+    "git.commit_push_green",
+    "run.lab",
+    "patch.status",
+    "project.status",
+    "debug.bundle",
+    "fmt.fix",
+    "root.hygiene",
+    "git.setup",
+    "handoff.open",
+    "cargo.lock.sync",
+    "patch.rollback_last",
+    "provider.capabilities",
+    "provider.operations",
+    "project.health",
+    "patch.scan"
+  ],
+  "handoff": {
+    "schema": "forge.handoff.v1",
+    "directory": "artifacts/handoff",
+    "latest": "artifacts/handoff/latest-handoff.json",
+    "auto_on_gate_failure": true,
+    "auto_on_runtime_failure": true,
+    "open_explorer_on_bundle": true,
+    "single_bundle": true,
+    "auto_on_commit_push_failure": true,
+    "auto_on_full_pass": true
+  },
+  "native_process": {
+    "schema": "forge.native_process.v1",
+    "failure_authority": "exit-code-only",
+    "stderr_policy": "capture-log-and-preserve-as-diagnostic",
+    "powershell_5_1_stderr_must_not_terminate": true,
+    "failure_tail_in_handoff": true
+  },
+  "project_id": "forgegui.core",
+  "project_kind": "rust-modular-gui-authoring-runtime-library",
+  "repository": {
+    "provider": "github",
+    "full_name": "shifty81/ForgeGUI_Core",
+    "url": "https://github.com/shifty81/ForgeGUI_Core.git",
+    "default_branch": "main",
+    "initialization": "clean-source-certified-green-bootstrap"
+  },
+  "authority": {
+    "kind": "project-owned-pcc",
+    "launcher": "PROJECT_CONTROL_CENTER.cmd",
+    "standalone_required": true,
+    "external_forge_optional": true,
+    "policy": "ForgeGUI_Core remains independently operable and versioned; Ember, Forge, Cortex, games, editors, and utilities consume it as a modular library/provider."
+  }
+}

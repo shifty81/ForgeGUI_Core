@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/forge_gui_core",
+    "crates/forge_gui_icons",
+    "crates/forge_gui_widgets",
+    "crates/forge_gui_canvas",
+    "crates/forge_gui_console",
+    "crates/forge_gui_notify",
+    "crates/forge_gui_pie",
+    "crates/forge_gui_egui",
+    "crates/forge_gui",
+    "crates/forge_gui_sdk",
+    "crates/forge_gui_testkit",
+    "crates/forge_gui_oss_lab",
+    "crates/forge_gui_theme",
+    "crates/forge_gui_rails",
+    "crates/forge_gui_workbench",
+    "crates/forge_gui_browser",
+    "crates/forge_gui_inspector",
+    "crates/forge_gui_command",
+    "crates/forge_gui_document_map",
+    "crates/forge_scene_core",
+    "crates/forge_render_core",
+    "crates/forge_authoring_core",
+    "crates/forge_authoring_egui",
+    "crates/forge_runtime_core",
+    "crates/forge_runtime_bridge",
+    "crates/forge_engine",
+    "examples/forge_gui_lab",
+    "examples/forge_gui_next_lab",
+    "examples/forge_authoring_lab",
+]
+
+[workspace.package]
+version = "0.4.8"
+edition = "2021"
+rust-version = "1.95"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+egui = "=0.36.2"
+egui_dock = { version = "=0.21.1", features = ["serde"] }
+egui_extras = "=0.36.2"
+egui-phosphor = "=0.14.0"
