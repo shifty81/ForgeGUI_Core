@@ -1,0 +1,24 @@
+[package]
+name = "forge_gui_universal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+forge_gui_core = { path = "../forge_gui_core" }
+forge_gui_app = { path = "../forge_gui_app" }
+forge_gui_services = { path = "../forge_gui_services" }
+forge_gui_state = { path = "../forge_gui_state" }
+forge_gui_forms = { path = "../forge_gui_forms" }
+forge_gui_data = { path = "../forge_gui_data" }
+forge_gui_settings = { path = "../forge_gui_settings" }
+forge_gui_platform = { path = "../forge_gui_platform" }
+forge_gui_i18n = { path = "../forge_gui_i18n" }
+forge_gui_accessibility = { path = "../forge_gui_accessibility" }
+forge_gui_extension = { path = "../forge_gui_extension" }
+forge_gui_dialog = { path = "../forge_gui_dialog" }
+forge_gui_overlay = { path = "../forge_gui_overlay" }
+forge_gui_persistence = { path = "../forge_gui_persistence" }
+forge_gui_search = { path = "../forge_gui_search" }
+forge_gui_log = { path = "../forge_gui_log" }

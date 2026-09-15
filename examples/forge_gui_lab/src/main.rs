@@ -18,6 +18,7 @@ use forge_gui_rails::{
     RailSection, RailStyle,
 };
 use forge_gui_theme::{ForgeTheme, ForgeThemePreset};
+use forge_gui_universal_egui::{show_universal_suite, UniversalSuiteState, UniversalTab};
 use forge_gui_widgets::{
     gauge, icon_text, progress_bar, scrollbar, ScrollbarAxis, ScrollbarState, WidgetTone,
 };
@@ -61,6 +62,7 @@ struct CreatorStudioLab {
     active_tool_tab: String,
     browser: BrowserModel,
     inspector_object: PropertyObject,
+    universal_suite: UniversalSuiteState,
     right_tab: String,
     palette: CommandPalette,
     workspace_view: WorkspaceViewState,
@@ -110,6 +112,7 @@ impl CreatorStudioLab {
             active_tool_tab: "tool.console".into(),
             browser: browser_model(),
             inspector_object: inspector_object(),
+            universal_suite: UniversalSuiteState::default(),
             right_tab: "inspector".into(),
             palette: command_palette(),
             workspace_view: WorkspaceViewState {
@@ -144,6 +147,37 @@ impl CreatorStudioLab {
                 position: 0.22,
                 viewport_fraction: 0.32,
             },
+        }
+    }
+
+    fn dispatch_command(&mut self, id: &str) {
+        match id {
+            "forge.command.view.widgets" => {
+                self.right_tab = "widgets".into();
+                self.right_panel_pinned = true;
+                self.last_action = "Opened Widget Gallery".into();
+            }
+            "forge.command.view.universal" => {
+                self.universal_suite.tab = UniversalTab::Overview;
+                self.right_tab = "universal".into();
+                self.right_panel_pinned = true;
+                self.last_action = "Opened Universal Application Suite".into();
+            }
+            "forge.command.run.play" => {
+                self.runtime_playing = true;
+                self.last_action = "Run > Play".into();
+            }
+            "forge.command.run.stop" => {
+                self.runtime_playing = false;
+                self.last_action = "Run > Stop".into();
+            }
+            "forge.command.file.new" => {
+                self.last_action = "New unavailable: attach a host document service".into();
+            }
+            "forge.command.document.save" => {
+                self.last_action = "Save unavailable: attach a host document service".into();
+            }
+            _ => self.last_action = format!("Command: {id}"),
         }
     }
 
@@ -202,6 +236,10 @@ impl CreatorStudioLab {
                 self.right_tab = "widgets".into();
                 self.right_panel_pinned = true;
             }
+            "panel.universal" => {
+                self.right_tab = "universal".into();
+                self.right_panel_pinned = true;
+            }
             "run.play" => self.runtime_playing = true,
             "run.stop" => self.runtime_playing = false,
             _ => {}
@@ -233,6 +271,7 @@ impl CreatorStudioLab {
                         ("inspector", "Inspector"),
                         ("assets", "Assets"),
                         ("widgets", "Widgets"),
+                        ("universal", "Universal"),
                     ],
                     &self.right_tab,
                     &theme,
@@ -251,6 +290,12 @@ impl CreatorStudioLab {
                         }
                     }
                     "widgets" => self.show_widget_gallery(ui),
+                    "universal" => {
+                        let response = show_universal_suite(ui, &mut self.universal_suite, &theme);
+                        if let Some(action) = response.last_action {
+                            self.last_action = action;
+                        }
+                    }
                     _ => {
                         let inspector =
                             show_property_object(ui, &mut self.inspector_object, &theme);
@@ -364,6 +409,15 @@ impl eframe::App for CreatorStudioLab {
         if root.input(|i| i.modifiers.command && i.key_pressed(egui::Key::P)) {
             self.palette.open();
         }
+        if root.input(|i| i.modifiers.command && i.key_pressed(egui::Key::N)) {
+            self.dispatch_command("forge.command.file.new");
+        }
+        if root.input(|i| i.modifiers.command && i.key_pressed(egui::Key::S)) {
+            self.dispatch_command("forge.command.document.save");
+        }
+        if root.input(|i| i.key_pressed(egui::Key::F6)) {
+            self.dispatch_command("forge.command.run.play");
+        }
 
         egui::Panel::top("forge.creator.project_title")
             .frame(egui::Frame::NONE)
@@ -386,49 +440,34 @@ impl eframe::App for CreatorStudioLab {
                 show_chrome_bar(ui, ChromeBarKind::Menu, &menu_theme, |ui| {
                     ui.horizontal(|ui| {
                         ui.menu_button("File", |ui| {
-                            if ui.button("New").clicked() {
-                                self.last_action = "File > New".into();
-                                ui.close();
-                            }
-                            if ui.button("Open…").clicked() {
-                                self.last_action = "File > Open".into();
-                                ui.close();
-                            }
-                            if ui.button("Save").clicked() {
-                                self.last_action = "File > Save".into();
-                                ui.close();
-                            }
-                            if ui.button("Save As…").clicked() {
-                                self.last_action = "File > Save As".into();
-                                ui.close();
-                            }
+                            ui.add_enabled(false, egui::Button::new("New   Ctrl+N"))
+                                .on_hover_text("Host document service is not attached in the certification Lab.");
+                            ui.add_enabled(false, egui::Button::new("Open…"))
+                                .on_hover_text("Host file/document service is not attached in the certification Lab.");
+                            ui.add_enabled(false, egui::Button::new("Save   Ctrl+S"))
+                                .on_hover_text("Host document service is not attached in the certification Lab.");
+                            ui.add_enabled(false, egui::Button::new("Save As…"))
+                                .on_hover_text("Host document service is not attached in the certification Lab.");
                             ui.separator();
-                            if ui.button("Import…").clicked() {
-                                self.last_action = "File > Import".into();
-                                ui.close();
-                            }
-                            if ui.button("Export…").clicked() {
-                                self.last_action = "File > Export".into();
-                                ui.close();
-                            }
+                            ui.add_enabled(false, egui::Button::new("Import…"))
+                                .on_hover_text("A consumer must register an import provider.");
+                            ui.add_enabled(false, egui::Button::new("Export…"))
+                                .on_hover_text("A consumer must register an export provider.");
                         });
 
                         ui.menu_button("Edit", |ui| {
-                            if ui.button("Undo").clicked() {
-                                self.last_action = "Edit > Undo".into();
-                                ui.close();
-                            }
-                            if ui.button("Redo").clicked() {
-                                self.last_action = "Edit > Redo".into();
-                                ui.close();
-                            }
+                            ui.add_enabled(false, egui::Button::new("Undo"))
+                                .on_hover_text("No host HistoryService transaction is active.");
+                            ui.add_enabled(false, egui::Button::new("Redo"))
+                                .on_hover_text("No host HistoryService transaction is active.");
                             ui.separator();
                             if ui.button("Command Palette…   Ctrl+P").clicked() {
                                 self.palette.open();
                                 ui.close();
                             }
                             if ui.button("Preferences…").clicked() {
-                                self.right_tab = "widgets".into();
+                                self.universal_suite.tab = UniversalTab::Settings;
+                                self.right_tab = "universal".into();
                                 self.right_panel_pinned = true;
                                 ui.close();
                             }
@@ -470,13 +509,21 @@ impl eframe::App for CreatorStudioLab {
                         });
 
                         ui.menu_button("Help", |ui| {
+                            if ui.button("Universal Application Suite").clicked() {
+                                self.universal_suite.tab = UniversalTab::Overview;
+                                self.right_tab = "universal".into();
+                                self.right_panel_pinned = true;
+                                ui.close();
+                            }
                             if ui.button("GUI Widget Catalog").clicked() {
                                 self.right_tab = "widgets".into();
                                 self.right_panel_pinned = true;
                                 ui.close();
                             }
                             if ui.button("Keyboard Shortcuts").clicked() {
-                                self.last_action = "Help > Keyboard Shortcuts".into();
+                                self.universal_suite.tab = UniversalTab::Commands;
+                                self.right_tab = "universal".into();
+                                self.right_panel_pinned = true;
                                 ui.close();
                             }
                             ui.separator();
@@ -564,7 +611,7 @@ impl eframe::App for CreatorStudioLab {
                         StatusItem {
                             label: "State".into(),
                             value: self.last_action.clone(),
-                            tone: WidgetTone::Success,
+                            tone: WidgetTone::Neutral,
                         },
                     ];
                     show_status_items(ui, &items, &self.theme);
@@ -694,7 +741,7 @@ impl eframe::App for CreatorStudioLab {
         self.run_renderer();
 
         if let Some(invocation) = show_command_palette(&ctx, &mut self.palette, &self.theme) {
-            self.last_action = format!("Command: {}", invocation.id);
+            self.dispatch_command(&invocation.id);
         }
 
         show_viewport_resize_handles(root, 5.0);
@@ -724,8 +771,8 @@ fn draw_renderer_preview(
     let painter = ui.painter();
 
     if visibility.grid && visibility.world {
-        let grid_color = egui::Color32::from_gray(31);
-        let major_color = egui::Color32::from_gray(44);
+        let grid_color = color(theme.base.border);
+        let major_color = color(theme.chrome.separator);
         let step = 32.0;
 
         let mut x = rect.left();
@@ -766,7 +813,7 @@ fn draw_renderer_preview(
         painter.rect_stroke(
             room,
             4.0,
-            egui::Stroke::new(1.0, egui::Color32::from_gray(57)),
+            egui::Stroke::new(1.0, color(theme.base.border)),
             egui::StrokeKind::Inside,
         );
     }
@@ -774,7 +821,7 @@ fn draw_renderer_preview(
     if visibility.entities {
         let center = rect.center();
         let player = egui::Rect::from_center_size(center, egui::vec2(120.0, 86.0));
-        painter.rect_filled(player, 5.0, egui::Color32::from_rgb(31, 68, 59));
+        painter.rect_filled(player, 5.0, color(theme.base.panel_raised));
         painter.rect_stroke(
             player,
             5.0,
@@ -786,7 +833,7 @@ fn draw_renderer_preview(
             egui::Align2::CENTER_CENTER,
             "Player",
             egui::FontId::proportional(16.0),
-            egui::Color32::WHITE,
+            color(theme.base.text),
         );
         for handle in [
             player.left_top(),
@@ -823,7 +870,12 @@ fn draw_renderer_preview(
         painter.circle_filled(
             light_center,
             34.0,
-            egui::Color32::from_rgba_unmultiplied(236, 183, 74, 20),
+            egui::Color32::from_rgba_unmultiplied(
+                theme.base.warning.0,
+                theme.base.warning.1,
+                theme.base.warning.2,
+                20,
+            ),
         );
         painter.circle_stroke(
             light_center,
@@ -911,6 +963,8 @@ fn universal_tool_rail() -> RailModel {
                     .tooltip("Asset browser"),
                 RailItem::new("panel.widgets", icon_text(IconId::Settings), "Widgets")
                     .tooltip("GUI widget gallery"),
+                RailItem::new("panel.universal", icon_text(IconId::Graph), "Universal")
+                    .tooltip("Universal application certification suite"),
             ],
         },
         RailSection {
@@ -1059,6 +1113,12 @@ fn command_palette() -> CommandPalette {
             PaletteEntry {
                 id: "forge.command.view.widgets".into(),
                 title: "Open Widget Gallery".into(),
+                category: "View".into(),
+                shortcut: None,
+            },
+            PaletteEntry {
+                id: "forge.command.view.universal".into(),
+                title: "Open Universal Application Suite".into(),
                 category: "View".into(),
                 shortcut: None,
             },

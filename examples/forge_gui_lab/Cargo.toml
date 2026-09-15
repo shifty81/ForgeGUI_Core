@@ -19,6 +19,7 @@ forge_gui_workspace = { path = "../../crates/forge_gui_workspace" }
 forge_gui_browser = { path = "../../crates/forge_gui_browser" }
 forge_gui_inspector = { path = "../../crates/forge_gui_inspector" }
 forge_gui_command = { path = "../../crates/forge_gui_command" }
+forge_gui_universal_egui = { path = "../../crates/forge_gui_universal_egui" }
 forge_render_core = { path = "../../crates/forge_render_core" }
 forge_render_surface = { path = "../../crates/forge_render_surface" }
 forge_scene_core = { path = "../../crates/forge_scene_core" }
