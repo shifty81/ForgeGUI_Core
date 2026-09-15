@@ -80,5 +80,5 @@ The runtime and scene layers are GUI-independent.
    only render backend.
 7. Applications pin certified ForgeGUI_Core revisions rather than silently
    inheriting library changes.
-8. ForgeGUI Lab and ForgeAuthoring Lab are certification harnesses, not product
+8. The canonical ForgeGUI Lab plus crate-level authoring/runtime tests are certification harnesses, not product
    shells.

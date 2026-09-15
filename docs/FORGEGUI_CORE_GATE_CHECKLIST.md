@@ -9,26 +9,27 @@ The internal ForgeGUI_Core PCC remains the authoritative independent library gat
 3. `cargo check --workspace --all-targets`
 4. `cargo test --workspace --all-targets`
 5. `cargo clippy --workspace --all-targets -- -D warnings`
-6. Existing `forge_gui_lab` builds.
-7. `forge_gui_next_lab` builds.
-8. `forge_authoring_lab` builds.
-9. All four rail presets render without clipping.
-10. Rail collapse/expand and badge behavior work.
-11. Asset Browser remains usable with a long virtualized list.
-12. Inspector edits return the expected property IDs/values.
-13. Command Palette opens, filters, invokes and closes.
-14. Document-map marker lane renders and returns normalized navigation positions.
-15. Focus mode preserves state while hiding structural side/bottom regions.
-16. Bottom tray cycles collapsed/normal/expanded.
-17. Scene hierarchy validation passes.
-18. Runtime clone neutralizes editor-only state.
-19. Authoring mode switches between 2D / 3D / Hybrid.
-20. Undo/redo round-trips scene transforms.
-21. Headless runtime starts without GUI dependencies.
-22. Fixed-step runtime caps substeps.
-23. PIE/runtime bridge starts from an authoring scene and restores authoring state.
-24. Existing 0.4.8 tests remain GREEN.
-25. No Ember/Cortex/Havenwild/Subspace domain type is introduced into the core libraries.
+6. Canonical `forge_gui_lab` builds as the only runnable visual Lab.
+7. The Lab launches without native OS decorations.
+8. ForgeGUI title chrome exposes Minimize + Close only and does not expose native Maximize.
+9. Project-owned edge/corner resize handles retain manual window resizing.
+10. All four rail presets render without clipping.
+11. Rail collapse/expand and badge behavior work.
+12. Asset Browser remains usable with a long virtualized list.
+13. Inspector edits return the expected property IDs/values.
+14. Command Palette opens, filters, invokes and closes.
+15. Document-map marker lane renders and returns normalized navigation positions.
+16. Focus/fill mode preserves state while hiding structural side/bottom regions.
+17. Bottom tray cycles collapsed/normal/expanded.
+18. Scene hierarchy validation passes.
+19. Runtime clone neutralizes editor-only state.
+20. Authoring mode switches between 2D / 3D / Hybrid.
+21. Undo/redo round-trips scene transforms.
+22. Headless runtime starts without GUI dependencies.
+23. Fixed-step runtime caps substeps.
+24. PIE/runtime bridge starts from an authoring scene and restores authoring state.
+25. Existing 0.4.8 tests remain GREEN.
+26. No Ember/Cortex/Havenwild/Subspace domain type is introduced into the core libraries.
 
 ## Visual certification expansion
 

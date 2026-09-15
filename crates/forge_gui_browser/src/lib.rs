@@ -1,7 +1,7 @@
-//! Reusable project/asset browser primitives for ForgeGUI_Core.
+//! Reusable project/asset browser primitives for ForgeGUI Core.
 #![forbid(unsafe_code)]
 
-use egui::{RichText, ScrollArea, Ui};
+use egui::{Button, Frame, Margin, RichText, ScrollArea, Stroke, Ui};
 use forge_gui_theme::ForgeTheme;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -111,30 +111,58 @@ pub struct BrowserResponse {
 
 pub fn show_browser(ui: &mut Ui, model: &mut BrowserModel, theme: &ForgeTheme) -> BrowserResponse {
     let mut response = BrowserResponse::default();
+    let metrics = theme.effective_metrics();
 
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("Assets").strong());
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.checkbox(&mut model.favorites_only, "★");
+    Frame::new()
+        .fill(color(theme.base.panel_recessed))
+        .stroke(Stroke::new(1.0, color(theme.chrome.separator)))
+        .corner_radius(2)
+        .inner_margin(Margin::symmetric(5, 3))
+        .show(ui, |ui| {
+            let _ =
+                forge_gui_widgets::search_box(ui, &mut model.query, "Search project assets", theme);
         });
-    });
 
-    ui.add(
-        egui::TextEdit::singleline(&mut model.query)
-            .hint_text("Search assets, files, tags…")
-            .desired_width(f32::INFINITY),
-    );
-
+    ui.add_space(3.0);
     ui.horizontal(|ui| {
+        let favorite_label = if model.favorites_only {
+            "★ Favorites"
+        } else {
+            "☆ Favorites"
+        };
+        if ui
+            .add(
+                Button::new(favorite_label)
+                    .selected(model.favorites_only)
+                    .corner_radius(2),
+            )
+            .clicked()
+        {
+            model.favorites_only = !model.favorites_only;
+        }
+        ui.separator();
         ui.selectable_value(&mut model.view_mode, BrowserViewMode::Tree, "Tree");
         ui.selectable_value(&mut model.view_mode, BrowserViewMode::List, "List");
         ui.selectable_value(&mut model.view_mode, BrowserViewMode::Grid, "Grid");
     });
 
-    ui.separator();
+    ui.add_space(3.0);
+    Frame::new()
+        .fill(color(theme.base.panel_recessed))
+        .inner_margin(Margin::symmetric(6, 3))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("PROJECT").small().strong());
+                ui.label(
+                    RichText::new(format!("{} items", model.filtered_indices().len()))
+                        .small()
+                        .color(color(theme.base.text_muted)),
+                );
+            });
+        });
 
     let filtered = model.filtered_indices();
-    let row_height = 30.0;
+    let row_height = metrics.asset_row_height.max(22.0);
 
     ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -143,46 +171,74 @@ pub fn show_browser(ui: &mut Ui, model: &mut BrowserModel, theme: &ForgeTheme) -
                 let item_index = filtered[visible_row];
                 let item = model.items[item_index].clone();
                 let selected = model.selected.contains(&item.id);
+                let depth = if item.parent.is_some() { 1 } else { 0 };
 
-                let icon = kind_icon(item.kind);
-                let mut text = format!("{icon}  {}", item.label);
-                if item.dirty {
-                    text.push_str("  •");
-                }
-                if item.warning {
-                    text.push_str("  !");
-                }
-
-                let label = if item.warning {
-                    RichText::new(text).color(color(theme.base.warning))
+                let fill = if selected {
+                    color(theme.base.panel_raised)
+                } else if visible_row.is_multiple_of(2) {
+                    color(theme.base.panel)
                 } else {
-                    RichText::new(text)
+                    color(theme.base.background)
                 };
 
-                let item_response = ui.selectable_label(selected, label);
-                let item_response = if let Some(secondary) = item.secondary.as_deref() {
-                    item_response.on_hover_text(secondary)
-                } else {
-                    item_response
-                };
+                Frame::new()
+                    .fill(fill)
+                    .corner_radius(1)
+                    .inner_margin(Margin::symmetric(5, 2))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.add_space(depth as f32 * 12.0);
+                            let icon = kind_icon(item.kind);
+                            ui.label(RichText::new(icon).size(12.0).color(color(
+                                if matches!(item.kind, BrowserItemKind::Folder) {
+                                    theme.base.warning
+                                } else {
+                                    theme.base.text_muted
+                                },
+                            )));
 
-                if item_response.clicked() {
-                    let modifiers = ui.input(|i| i.modifiers);
-                    if modifiers.command || modifiers.ctrl {
-                        if selected {
-                            model.selected.remove(&item.id);
-                        } else {
-                            model.selected.insert(item.id.clone());
-                        }
-                    } else {
-                        model.set_single_selection(item.id.clone());
-                    }
-                    response.selection_changed = true;
-                }
+                            let mut text = item.label.clone();
+                            if item.dirty {
+                                text.push_str("  •");
+                            }
+                            let label = if item.warning {
+                                RichText::new(text).color(color(theme.base.warning))
+                            } else {
+                                RichText::new(text)
+                            };
 
-                if item_response.double_clicked() {
-                    response.activated = Some(item.id.clone());
-                }
+                            let item_response = ui.selectable_label(selected, label);
+                            let item_response = if let Some(secondary) = item.secondary.as_deref() {
+                                item_response.on_hover_text(secondary)
+                            } else {
+                                item_response
+                            };
+
+                            if item.favorite {
+                                ui.label(
+                                    RichText::new("★").small().color(color(theme.base.warning)),
+                                );
+                            }
+
+                            if item_response.clicked() {
+                                let modifiers = ui.input(|i| i.modifiers);
+                                if modifiers.command || modifiers.ctrl {
+                                    if selected {
+                                        model.selected.remove(&item.id);
+                                    } else {
+                                        model.selected.insert(item.id.clone());
+                                    }
+                                } else {
+                                    model.set_single_selection(item.id.clone());
+                                }
+                                response.selection_changed = true;
+                            }
+
+                            if item_response.double_clicked() {
+                                response.activated = Some(item.id.clone());
+                            }
+                        });
+                    });
             }
         });
 
@@ -191,7 +247,7 @@ pub fn show_browser(ui: &mut Ui, model: &mut BrowserModel, theme: &ForgeTheme) -
 
 fn kind_icon(kind: BrowserItemKind) -> &'static str {
     match kind {
-        BrowserItemKind::Folder => "▸",
+        BrowserItemKind::Folder => "▾",
         BrowserItemKind::Scene => "▦",
         BrowserItemKind::Object => "◇",
         BrowserItemKind::Sprite => "▧",

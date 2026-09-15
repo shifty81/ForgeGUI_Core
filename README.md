@@ -4,6 +4,16 @@ ForgeGUI_Core is an independently maintained Rust foundation for a modular devel
 
 It provides reusable GUI, workbench, authoring, scene, render, runtime, PIE, diagnostics, and application-integration infrastructure that can be consumed by Ember, Forge, Cortex, game editors, standalone utilities, and future applications without forcing them into one monolithic executable.
 
+## Canvas-first GUI Core
+
+ForgeGUI now treats the center authoring canvas as the priority surface. The canonical Lab
+uses fully project-owned borderless chrome, File/Edit/View/Help menus, a grouped universal
+left tool rail, a collapsible/edge-reveal right context surface, optional secondary trays,
+and internal infinite-canvas slim ruler/vertical-layer chrome. Built-in theme presets and reusable
+progress, gauge, scrollbar, command, Inspector, browser, rail, and panel primitives are
+intended to let other projects begin from a polished GUI foundation and specialize only
+what their workflows require. See `docs/forge_gui/FORGEGUI_CANVAS_FIRST_SHELL_STANDARD.md`.
+
 ## Repository architecture
 
 ```text
@@ -13,14 +23,14 @@ ForgeGUI_Core
 ├─ ForgeScene     shared authoring/runtime scene model
 ├─ ForgeRender    renderer-neutral render/camera/picking contracts
 ├─ ForgeRuntime   GUI-independent runtime + PIE/simulation hosting
-└─ Labs/Testkit   independent certification applications
+└─ GUI Lab/Testkit canonical visual lab + library certification
 ```
 
 Consumer applications own their domain models and project-specific tools. ForgeGUI_Core owns reusable mechanics and contracts.
 
 ## Current baseline
 
-This clean source reset contains the cumulative **FG-C01 through FG-C40** foundation:
+The current source contains the cumulative **FG-C01 through FG-C82** foundation:
 
 - mature ForgeGUI 0.4.8 contracts and structural workbench
 - semantic themes/elevation and reusable widget infrastructure
@@ -31,7 +41,10 @@ This clean source reset contains the cumulative **FG-C01 through FG-C40** founda
 - universal authoring-surface state, selection, grid/snap, gizmo, and undo foundations
 - fixed-step headless/rendered/editor-preview runtime contracts
 - Simulate / PIE / Play From Here / Detached / Standalone / Headless runtime bridge
-- ForgeGUI Lab, ForgeGUI Next Lab, and ForgeAuthoring Lab certification targets
+- one canonical `forge_gui_lab` visual certification target; authoring/runtime coverage lives in shared crates and tests
+- project-owned borderless shell with Minimize / Maximize-Restore / Close, draggable + double-click title behavior, and a distinct File/Edit/View/Help application menu strip
+- canvas-first workspace with a thin internal frame, slim context-aware rulers, compact vertical layer stack, HUD, grouped universal rail and collapsible context surface
+- five built-in visual themes plus shared progress, gauge, scrollbar and segmented-choice primitives
 
 ## Clean reset
 
@@ -95,6 +108,7 @@ The first gate may perform the one manifest-authorized `rustfmt` canonicalizatio
 
 See:
 
+- `docs/forge_gui/PROJECT_OWNED_CHROME_AND_VISUAL_TARGET.md`
 - `docs/FORGEGUI_CORE_ARCHITECTURE.md`
 - `docs/FORGE_UNIVERSAL_AUTHORING_RUNTIME.md`
 - `docs/forge_gui/IMPLEMENTATION_ROADMAP.md`

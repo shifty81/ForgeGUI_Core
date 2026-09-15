@@ -3,11 +3,11 @@
     "project":  "ForgeGUI_Core",
     "version":  "0.4.8",
     "api_version":  "forge.gui.v0.4",
-    "note":  "FG-C01..FG-C55 cumulative ForgeGUI Core baseline rebased onto authoritative FG-C40 state after PATCH-20260914-173620-0c1a8046; Creator Studio chrome, panel/widget theming, durable layout model, renderer-backed universal workspace surface host, and rebuilt Creator Studio Lab. Local PCC Full Gate remains authoritative.",
+    "note":  "Current 0.4.8 package manifest with project-owned shell normalization: Minimize/Maximize-Restore/Close title chrome, distinct application menu bar, slim context-aware rulers, compact vertical layer stack, rounded transparent shell, and expanded status chrome. Local PCC Full Gate remains authoritative.",
     "self_excluded":  true,
     "cargo_lock_policy":  "Cargo.lock is retained and committed; it is excluded from package-manifest coverage but participates in the source fingerprint and locked certification.",
     "format_state":  "canonical",
-    "file_count":  129,
+    "file_count":  125,
     "files":  [
                   {
                       "path":  ".gitattributes",
@@ -36,13 +36,13 @@
                   },
                   {
                       "path":  "Cargo.toml",
-                      "bytes":  1413,
-                      "sha256":  "0f5e6c1e382b2071e9d484724acbeeaf6405c3e62b1f320238d9a311ad49c9a9"
+                      "bytes":  1342,
+                      "sha256":  "f0d4c1169693f608ff60589d21afadd203bd70d400ab3e7873092cb5d510ed1c"
                   },
                   {
                       "path":  "CHANGELOG.md",
-                      "bytes":  4752,
-                      "sha256":  "afb1a1dd851b711690efcb91d1f64a393cf1680d76cabba5e89942980b05cfb9"
+                      "bytes":  7040,
+                      "sha256":  "4a24b6ef3cfc73ca48d722e1dd4f1ce6eb8b35d43789f0cedd36d0429a082c3b"
                   },
                   {
                       "path":  "crates/forge_authoring_core/Cargo.toml",
@@ -76,23 +76,23 @@
                   },
                   {
                       "path":  "crates/forge_gui/Cargo.toml",
-                      "bytes":  899,
-                      "sha256":  "68ce15b10bbe74031526c49574ee59d734d8da5ce2205a8ed7fe6113f965f48f"
+                      "bytes":  1115,
+                      "sha256":  "33e5fc533156cd6dc2671ba129e7d8cac54aa180e66a11681ebb42e2055a958a"
                   },
                   {
                       "path":  "crates/forge_gui/src/lib.rs",
-                      "bytes":  790,
-                      "sha256":  "94e53da4e61755071bfcffe2c3bbdd29d2edba16ef44009013022bbed1a5fa5e"
+                      "bytes":  942,
+                      "sha256":  "5bded201f600fcc7df6e1bfae8b66332a30c9705d2640e2f93a02ae97bd65134"
                   },
                   {
                       "path":  "crates/forge_gui_browser/Cargo.toml",
-                      "bytes":  301,
-                      "sha256":  "bad1733cf5ec0eeb850796f6ca40e0d79ab4e6a8af3f452c3ed5780fec853bcc"
+                      "bytes":  355,
+                      "sha256":  "1cc3dcfec0722339e2ce9cb8d589a9e6570b0c4b1b3dd62a70e426648bb0f7ad"
                   },
                   {
                       "path":  "crates/forge_gui_browser/src/lib.rs",
-                      "bytes":  6676,
-                      "sha256":  "a0aa86818b4799b5ce0b95d7b655646b4a17294fee680436d853afba0a0b0d08"
+                      "bytes":  9328,
+                      "sha256":  "30f2a56a5c6e0b82ab33595fd0004f2da7866f23d942049803cfc6cc8b08b8d3"
                   },
                   {
                       "path":  "crates/forge_gui_canvas/Cargo.toml",
@@ -111,8 +111,8 @@
                   },
                   {
                       "path":  "crates/forge_gui_chrome/src/lib.rs",
-                      "bytes":  7013,
-                      "sha256":  "a04b3e8801601ccc0edeac4a87c81b75b000cb659438eda1ab52f2479255910c"
+                      "bytes":  19943,
+                      "sha256":  "b05599893ea4a1dfdc6c54d8c5b3cdd644e1c36d20e33ac7120ab8c8d4751f94"
                   },
                   {
                       "path":  "crates/forge_gui_command/Cargo.toml",
@@ -176,13 +176,13 @@
                   },
                   {
                       "path":  "crates/forge_gui_inspector/Cargo.toml",
-                      "bytes":  280,
-                      "sha256":  "8a806c06bf0810f5213fce65fe3221053a6561c998f4977efd4de66b4296e0b2"
+                      "bytes":  334,
+                      "sha256":  "ffc64ac9abf7ead5ef89e1b98285bc19f89828b93c968613df630022981d7894"
                   },
                   {
                       "path":  "crates/forge_gui_inspector/src/lib.rs",
-                      "bytes":  2842,
-                      "sha256":  "bf1e6a81f818a0d38a724097282a11e8ee166abe88ff7972197bd10ef33e7c88"
+                      "bytes":  3783,
+                      "sha256":  "6d937dd805068de5a488785d0e7031e23139e0f463cdd5f42bdafdb3b0e05f3d"
                   },
                   {
                       "path":  "crates/forge_gui_layout/Cargo.toml",
@@ -192,7 +192,7 @@
                   {
                       "path":  "crates/forge_gui_layout/src/lib.rs",
                       "bytes":  3505,
-                      "sha256":  "837725d5f02c55a1eba147103280406fba63255216b7a95d4c15c025a4bc2e44"
+                      "sha256":  "e6924d13d23d3a3f708e9fe0399197d525908e8df3d2cd96cf1c6d5beebab34c"
                   },
                   {
                       "path":  "crates/forge_gui_notify/Cargo.toml",
@@ -221,8 +221,8 @@
                   },
                   {
                       "path":  "crates/forge_gui_panels/src/lib.rs",
-                      "bytes":  4514,
-                      "sha256":  "314365686f0d4ffdb1ba235197a49d40c9fc6bebfaa74d252e150684614f2eff"
+                      "bytes":  5966,
+                      "sha256":  "7e224819ff0c610315730f18ae4159fa3a9923ba7313e0ef28aed3fd00ae90ef"
                   },
                   {
                       "path":  "crates/forge_gui_pie/Cargo.toml",
@@ -271,8 +271,8 @@
                   },
                   {
                       "path":  "crates/forge_gui_theme/src/lib.rs",
-                      "bytes":  9282,
-                      "sha256":  "9db095fd63992debe79431c88ddbc742dd3f3ecfd4dd8d04e704d2c0a75ec270"
+                      "bytes":  11942,
+                      "sha256":  "f54c1277614588f393485a628f774d115ac20c68a6a088da1bc2c48b2db9f1dc"
                   },
                   {
                       "path":  "crates/forge_gui_widgets/Cargo.toml",
@@ -281,8 +281,8 @@
                   },
                   {
                       "path":  "crates/forge_gui_widgets/src/lib.rs",
-                      "bytes":  6855,
-                      "sha256":  "2e62883bcdaceae2849c9246ee9a5a8b82e8741a4c9df8a82feb985f356f7f87"
+                      "bytes":  16109,
+                      "sha256":  "01277a6d0e8fdaeb3cd19905a5cd674dae062941b292d27b041c6f91315c7b2f"
                   },
                   {
                       "path":  "crates/forge_gui_workbench/Cargo.toml",
@@ -301,8 +301,8 @@
                   },
                   {
                       "path":  "crates/forge_gui_workspace/src/lib.rs",
-                      "bytes":  6169,
-                      "sha256":  "9a3e150a4b2b8b04f4e939e04608413013dd30493f78453929b43a7e472c3890"
+                      "bytes":  14291,
+                      "sha256":  "206db28f605731147967ab06c7ced499ae729cadc6d0f1292cacace7e23fde39"
                   },
                   {
                       "path":  "crates/forge_render_core/Cargo.toml",
@@ -431,13 +431,18 @@
                   },
                   {
                       "path":  "docs/forge_gui/FG_C41_C55_CREATOR_STUDIO.md",
-                      "bytes":  2298,
-                      "sha256":  "a5abe77ac6f21ab3550739844d818b4e4f8b520a524b5a122f861cbc2be21c9d"
+                      "bytes":  2841,
+                      "sha256":  "5a29933cc44900729b24c5203e9c1782eef2736f11e38cac5cc570cad6778bc2"
+                  },
+                  {
+                      "path":  "docs/forge_gui/FORGEGUI_CANVAS_FIRST_SHELL_STANDARD.md",
+                      "bytes":  6454,
+                      "sha256":  "0328d6e3e7a6da08bdf1d8ac426a784897144d6edb5e8bc3d8c627e2a54c8b0c"
                   },
                   {
                       "path":  "docs/forge_gui/FORGEGUI_LIBRARY_AND_WIDGET_SPEC.md",
-                      "bytes":  5364,
-                      "sha256":  "7b9b0eb243ebef049b1871894a8e860b74e1a79af831b02d3c68e6c9450b0d76"
+                      "bytes":  5967,
+                      "sha256":  "ecbdc2699260af7560b9544c16aa3ba44acf82f36c564f54dea6cc0500910616"
                   },
                   {
                       "path":  "docs/forge_gui/FORGEGUI_RAIL_PRESETS.md",
@@ -446,18 +451,18 @@
                   },
                   {
                       "path":  "docs/forge_gui/FORGEGUI_WIDGET_CATALOG.md",
-                      "bytes":  3808,
-                      "sha256":  "06c549e4fff2c5fe134847752d73507e716a04cc1cc740ca495380956e47aefa"
+                      "bytes":  4483,
+                      "sha256":  "ad748602f92f1a67a8f1d4609d62e4d1d8f05af7ac7fd195e09d7abec7c31863"
                   },
                   {
                       "path":  "docs/forge_gui/IMPLEMENTATION_ROADMAP.md",
-                      "bytes":  2505,
-                      "sha256":  "c2f7ace7b57c7aa71274d1a9d32570d70b4c1d3d6ff91c6c072a9ed80f57d148"
+                      "bytes":  4759,
+                      "sha256":  "8e0211d15450fcc55514be26ffbc772b3c5113bc20394e6d54779b64faeb3e23"
                   },
                   {
                       "path":  "docs/forge_gui/WIDGET_EXPANSION.md",
-                      "bytes":  1903,
-                      "sha256":  "d2be8913184604e35f1c52a778d5bcc779609925c8aa5bcc3f8f920817c2ab83"
+                      "bytes":  1905,
+                      "sha256":  "4878fdc2b6e24ba141c79cd58e14c96de604d4e824c9912c951e0b173ff1007e"
                   },
                   {
                       "path":  "docs/FORGE_UNIVERSAL_AUTHORING_RUNTIME.md",
@@ -466,13 +471,13 @@
                   },
                   {
                       "path":  "docs/FORGEGUI_CORE_ARCHITECTURE.md",
-                      "bytes":  2322,
-                      "sha256":  "cb06cdc0b56ce866c9029e302a76b13dfae50b4a6c7ef78d4e5b7f0417483551"
+                      "bytes":  2354,
+                      "sha256":  "bfd588c5f8849af9d4e30a8f96cb3cfdccbb7f460ff34a1bd75e5859235c37c8"
                   },
                   {
                       "path":  "docs/FORGEGUI_CORE_GATE_CHECKLIST.md",
-                      "bytes":  1833,
-                      "sha256":  "6ec383610a9d57dd2d745cfc1ba410f33baf642c4572058c7675fdd188f4ec06"
+                      "bytes":  2025,
+                      "sha256":  "1db3b011cdcc449ad18474f1f81d9294524a8281e2ca2a346b5654e496964210"
                   },
                   {
                       "path":  "docs/HANDOFF_STANDARD.md",
@@ -481,8 +486,8 @@
                   },
                   {
                       "path":  "docs/INTERNAL_PCC_STANDARD.md",
-                      "bytes":  1643,
-                      "sha256":  "5ffc93afd1dad35a96442417a04c0b3bea7539b1f4bbec5833fd761c0bba6742"
+                      "bytes":  3914,
+                      "sha256":  "44f2c0dd1015828990aa75c79f092da9c0e5ea02e5efc5eb787417fe2cca08d8"
                   },
                   {
                       "path":  "docs/pcc/INTERNAL_PCC.md",
@@ -510,19 +515,9 @@
                       "sha256":  "106d66b5f5bbe1e666c179fac3143eb2cacf0d5b3ba82b92e4904b456002f773"
                   },
                   {
-                      "path":  "examples/forge_authoring_lab/Cargo.toml",
-                      "bytes":  759,
-                      "sha256":  "77d16f17a195244058afa27d8c410ea0dc432451b565cc91ccd433ba972832cc"
-                  },
-                  {
-                      "path":  "examples/forge_authoring_lab/src/main.rs",
-                      "bytes":  8730,
-                      "sha256":  "4c75852029b84ab7a56780c1db6f6c3a6924f073d1c4ae4f1f16d4cdde147b16"
-                  },
-                  {
                       "path":  "examples/forge_gui_lab/Cargo.toml",
-                      "bytes":  444,
-                      "sha256":  "61272519583d44de3780c35cc203fb8a66b74d013621c309921490c901fdeab8"
+                      "bytes":  1245,
+                      "sha256":  "042ba17b7bb5c698fd0f58a744e4a04795d3e9451281830804ab3c79057ed551"
                   },
                   {
                       "path":  "examples/forge_gui_lab/README.md",
@@ -531,28 +526,13 @@
                   },
                   {
                       "path":  "examples/forge_gui_lab/src/main.rs",
-                      "bytes":  9408,
-                      "sha256":  "fecce7381a517924141d6a7252a6dc4211c1476df1f40be563b9087bbbb65728"
-                  },
-                  {
-                      "path":  "examples/forge_gui_lab/src/panels.rs",
-                      "bytes":  26880,
-                      "sha256":  "e85f77b7ef08aa18ce2be8d4181a62db61b47b4f4f9d6968c8275cf2332f8bf7"
-                  },
-                  {
-                      "path":  "examples/forge_gui_next_lab/Cargo.toml",
-                      "bytes":  1190,
-                      "sha256":  "ca17b9058ab8ba694a7ee8bda39e9e10110937e5ef37e11216eab1c84d97a2eb"
-                  },
-                  {
-                      "path":  "examples/forge_gui_next_lab/src/main.rs",
-                      "bytes":  26616,
-                      "sha256":  "d86473527241f906d8031d1bfea1890dbc52fd4ca354d01b70a7bd28222e5046"
+                      "bytes":  41607,
+                      "sha256":  "f17ee70a48fab37d0865bbb3404436ce3995139d0f4e6bf4620de96284623a4e"
                   },
                   {
                       "path":  "FEATURE_MATRIX.md",
-                      "bytes":  2640,
-                      "sha256":  "e188c3d3179394a96fe65ad5419072186381081b6ad7f1a220621548c4c8f9b7"
+                      "bytes":  5690,
+                      "sha256":  "3747daf3466b9babbcfc5b035743a3faf96be5eed59617b7399ecdfcb852146c"
                   },
                   {
                       "path":  "forge.gui.toml",
@@ -561,8 +541,8 @@
                   },
                   {
                       "path":  "FORGEGUI_CORE_NEXT_PASSES.md",
-                      "bytes":  3510,
-                      "sha256":  "e8202f41ba887fb3c9ee925536337bfed2bdcdec778e3e6de9cb6374acf95fcd"
+                      "bytes":  4613,
+                      "sha256":  "4225c110040677751b9b3d406bff99fc1bfe3649d9ba25bf54f3d4d5a1de6b96"
                   },
                   {
                       "path":  "INTEGRATION_MATRIX.md",
@@ -571,8 +551,8 @@
                   },
                   {
                       "path":  "project.control.json",
-                      "bytes":  4114,
-                      "sha256":  "51e5895a971ca98743f6471be83ae0c6758eee1c1a687e3e3fae188050f5d8aa"
+                      "bytes":  4237,
+                      "sha256":  "4a7bd56bc168fcca0225398edee4a3bdfdd7a6d23fc5083efbfe28644cbb65bb"
                   },
                   {
                       "path":  "PROJECT_CONTROL_CENTER.cmd",
@@ -581,8 +561,8 @@
                   },
                   {
                       "path":  "README.md",
-                      "bytes":  3983,
-                      "sha256":  "f84387a1d9489eb0c31273c213f0f803f2ec3eb3434f26de7653033d7cb6f304"
+                      "bytes":  5199,
+                      "sha256":  "cde90c5e6992919b9c0749ce9944aa408df7b405435f81ff0255596b3e2c99f7"
                   },
                   {
                       "path":  "RESEARCH_AND_ARCHITECTURE.md",
@@ -636,8 +616,8 @@
                   },
                   {
                       "path":  "tools/pcc/ForgeGuiControl.ps1",
-                      "bytes":  66436,
-                      "sha256":  "b12a8155a05a4210758fa9dd73fd559a9068f2a28c619bd822302abed801a0d6"
+                      "bytes":  86116,
+                      "sha256":  "b3c35e491356b46e051d8e8425a9f3173529121cb35228cf3aaa12f3dcf54d65"
                   },
                   {
                       "path":  "tools/pcc/ForgeGuiRootHygiene.ps1",

@@ -1,6 +1,17 @@
 # ForgeGUI_Core Widget Catalog
 
 This catalog defines the reusable GUI surface available to any ForgeGUI_Core consumer.
+The canvas-first shell contract is defined in `FORGEGUI_CANVAS_FIRST_SHELL_STANDARD.md`.
+
+## Current certified baseline
+
+The canonical Lab now directly certifies project-owned title/menu chrome, theme presets,
+a grouped universal tool rail, edge-reveal side surfaces, optional document/bottom trays,
+status chrome, infinite-canvas frame/rulers/text-layer HUD, Inspector/Asset context hosting,
+command palette, progress bars, radial gauges, themed native scroll areas, and a
+ForgeGUI-owned scrollbar primitive. Remaining entries below are the normalized target
+widget vocabulary and should be implemented behind shared ForgeGUI adapters rather than
+as consumer-specific one-offs.
 
 ## Navigation and commands
 
@@ -38,7 +49,7 @@ states, skeleton rows, and async thumbnails.
 
 Raised/sunken/flat panels, cards, split panes, dock tab stacks, collapsible sidebars,
 accordions, scroll containers, auto-hide edge panels, slide-out drawers, bottom trays,
-focus/maximize document mode, floating tool windows, and contextual rails.
+focus/fill document mode, floating tool windows, and contextual rails.
 
 ## Overlays
 

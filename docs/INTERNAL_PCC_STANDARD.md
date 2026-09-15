@@ -19,3 +19,37 @@ ForgeGUI follows the project-owned PCC convention used across the tool/game flee
 
 - Machine-readable status/health/capability/operation provider queries are non-interactive and never trigger patch approval prompts.
 - Full Gate emits a non-opening PASS handoff bundle as checkpoint evidence as well as automatic opened bundles on failures.
+
+## Automatic patch normalization
+
+A successful root patch transaction owns its complete preparation lifecycle:
+
+- Patch application remains explicitly approved by the user and transactional.
+- Rust source changes automatically run `cargo fmt --all` followed by `cargo fmt --all --check`.
+- Cargo workspace/manifest changes automatically probe `cargo metadata --locked`; Cargo.lock is refreshed only when Cargo explicitly reports the lock as stale or missing.
+- Any controlled formatter/lock transformation is followed by full `PACKAGE_MANIFEST.json` regeneration and verification.
+- The patch receipt is written only after normalization succeeds; normalization failure rolls the transaction back and produces a debug handoff.
+- A successful update enters `PATCH_APPLIED_NEEDS_GATE`. The PCC exits/restarts cleanly, but no separate rustfmt or Cargo.lock repair should normally be required.
+- `Run & play` is blocked until the current source has completed a Full Quality Gate and has a current GREEN fingerprint.
+- Full Gate remains explicit. Patch application never certifies GREEN automatically.
+- Manual rustfmt and Cargo.lock actions remain available only as repair/fallback operations.
+- Older failed root patches that are fully covered by a newer successfully applied cumulative patch may be archived as superseded when the older transport predates the newer one and no longer applies.
+
+## Startup formatting authority recovery
+
+Provider 0.4.10 closes a provider-transition edge case discovered while promoting the Creator
+Studio. `PACKAGE_MANIFEST.json` being marked `canonical` is not by itself sufficient proof that
+Rust source written by an older provider has passed through the current `rustfmt`.
+
+On normal PCC startup, when no explicit normalization recovery is already pending, the provider
+runs `cargo fmt --all --check` as the formatting authority probe. If formatting drift is detected,
+the PCC automatically performs the governed post-patch normalization transaction:
+
+- `cargo fmt --all`
+- `cargo fmt --all --check`
+- controlled Cargo.lock reconciliation
+- `PACKAGE_MANIFEST.json` regeneration and verification
+- `PATCH_APPLIED_NEEDS_GATE`
+
+The recovery never certifies GREEN. It returns the project to the user ready for an explicit
+Full Quality Gate.

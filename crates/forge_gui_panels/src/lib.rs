@@ -4,7 +4,7 @@
 use egui::{Align, Frame, Layout, Margin, RichText, Stroke, Ui};
 use forge_gui_icons::IconId;
 use forge_gui_theme::{ForgeTheme, SurfaceRole};
-use forge_gui_widgets::{compact_tool_button, WidgetTone};
+use forge_gui_widgets::{compact_tool_button, panel_tab, WidgetTone};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PanelKind {
@@ -44,9 +44,9 @@ pub fn show_panel<R>(
     let mut header_response = PanelHeaderResponse::default();
     let inner = Frame::new()
         .fill(color(surface.fill))
-        .stroke(Stroke::new(1.0, color(surface.border)))
-        .corner_radius(surface.corner_radius as u8)
-        .inner_margin(Margin::same(theme.effective_metrics().panel_padding))
+        .stroke(Stroke::new(1.0, color(theme.chrome.separator)))
+        .corner_radius(1)
+        .inner_margin(Margin::same(0))
         .show(ui, |ui| {
             show_panel_header(
                 ui,
@@ -57,8 +57,11 @@ pub fn show_panel<R>(
                 theme,
                 &mut header_response,
             );
-            ui.add_space(4.0);
-            add_body(ui)
+            Frame::new()
+                .fill(color(theme.base.panel))
+                .inner_margin(Margin::same(theme.effective_metrics().panel_padding))
+                .show(ui, add_body)
+                .inner
         })
         .inner;
 
@@ -78,13 +81,16 @@ fn show_panel_header(
     let metrics = theme.effective_metrics();
     Frame::new()
         .fill(color(theme.chrome.panel_header))
-        .corner_radius(5)
-        .inner_margin(Margin::symmetric(8, 4))
+        .inner_margin(Margin::symmetric(8, 3))
         .show(ui, |ui| {
-            ui.set_min_height((metrics.panel_header_height - 8.0).max(18.0));
+            ui.set_min_height((metrics.panel_header_height - 6.0).max(18.0));
             ui.horizontal(|ui| {
-                ui.label(RichText::new(kind_glyph(kind)).color(color(theme.base.text_muted)));
-                ui.strong(title);
+                ui.label(
+                    RichText::new(kind_glyph(kind))
+                        .size(11.5)
+                        .color(color(theme.base.accent)),
+                );
+                ui.label(RichText::new(title).strong().size(12.5));
                 if let Some(subtitle) = subtitle {
                     ui.label(
                         RichText::new(subtitle)
@@ -109,6 +115,32 @@ fn show_panel_header(
                 });
             });
         });
+    ui.painter().line_segment(
+        [ui.min_rect().left_bottom(), ui.min_rect().right_bottom()],
+        Stroke::new(1.0, color(theme.chrome.separator)),
+    );
+}
+
+pub fn show_panel_tabs(
+    ui: &mut Ui,
+    tabs: &[(&str, &str)],
+    active: &str,
+    theme: &ForgeTheme,
+) -> Option<String> {
+    let mut selected = None;
+    Frame::new()
+        .fill(color(theme.base.panel_recessed))
+        .inner_margin(Margin::symmetric(4, 2))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for (id, label) in tabs {
+                    if panel_tab(ui, label, *id == active, theme).clicked() {
+                        selected = Some((*id).to_owned());
+                    }
+                }
+            });
+        });
+    selected
 }
 
 pub fn show_section_header(
@@ -118,20 +150,35 @@ pub fn show_section_header(
     open: &mut bool,
     theme: &ForgeTheme,
 ) -> bool {
-    let response = ui.horizontal(|ui| {
-        let glyph = if *open { "▾" } else { "▸" };
-        let clicked = ui
-            .selectable_label(*open, format!("{glyph}  {label}"))
-            .clicked();
-        if let Some(count) = count {
-            let _ = forge_gui_widgets::badge(ui, &count.to_string(), WidgetTone::Neutral, theme);
-        }
-        clicked
-    });
-    if response.inner {
+    let mut clicked = false;
+    Frame::new()
+        .fill(color(theme.base.panel_recessed))
+        .stroke(Stroke::new(1.0, color(theme.chrome.separator)))
+        .corner_radius(2)
+        .inner_margin(Margin::symmetric(6, 3))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                let glyph = if *open { "▾" } else { "▸" };
+                if ui
+                    .selectable_label(*open, format!("{glyph}  {label}"))
+                    .clicked()
+                {
+                    clicked = true;
+                }
+                if let Some(count) = count {
+                    let _ = forge_gui_widgets::badge(
+                        ui,
+                        &count.to_string(),
+                        WidgetTone::Neutral,
+                        theme,
+                    );
+                }
+            });
+        });
+    if clicked {
         *open = !*open;
     }
-    response.inner
+    clicked
 }
 
 fn kind_glyph(kind: PanelKind) -> &'static str {

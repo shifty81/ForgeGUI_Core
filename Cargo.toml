@@ -33,8 +33,6 @@ members = [
     "crates/forge_runtime_bridge",
     "crates/forge_engine",
     "examples/forge_gui_lab",
-    "examples/forge_gui_next_lab",
-    "examples/forge_authoring_lab",
 ]
 
 [workspace.package]

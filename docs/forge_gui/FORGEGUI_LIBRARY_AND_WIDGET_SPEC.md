@@ -25,6 +25,13 @@ The repository is broader than a widget skin:
 Applications own project-specific meaning. ForgeGUI_Core must not hard-code crops,
 spaceships, quests, world-generation rules, or other consumer-domain semantics.
 
+
+## Project-owned desktop chrome
+
+Desktop consumers should default to ForgeGUI-owned window chrome: native OS decorations disabled, a draggable ForgeGUI title surface, project-styled Minimize and Close controls, and no native Maximize control. Manual window resizing is provided by project-owned edge/corner resize handles. Workspace expansion is handled by dock/workbench focus-fill behavior instead of a native maximize button.
+
+The canonical visual references are the four concept images in `docs/forge_gui/concepts/`.
+
 ## Core panel/tab-rail system
 
 ForgeGUI_Core supports multiple interchangeable tab-rail presentations through one
@@ -143,6 +150,4 @@ and other document markers.
 
 ## Certification
 
-ForgeGUI Lab and ForgeAuthoring Lab are independent certification applications.
-They are not product-specific editors. Consumer applications run their own integration
-gates against a known-GREEN ForgeGUI_Core version.
+`forge_gui_lab` is the single visual certification application. Authoring/runtime behavior is certified through shared crate tests and exercised inside the same Lab where a visual surface is useful. Consumer applications run their own integration gates against a known-GREEN ForgeGUI_Core version.

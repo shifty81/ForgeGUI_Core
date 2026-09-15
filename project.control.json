@@ -4,7 +4,7 @@
   "version": "0.4.8",
   "provider": {
     "id": "forge.internal_pcc.v1",
-    "version": "0.4.8",
+    "version": "0.4.10",
     "kind": "powershell",
     "entrypoint": "tools/pcc/ForgeGuiControl.ps1",
     "status_command": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/pcc/ForgeGuiControl.ps1 -Operation status-json",
@@ -16,7 +16,7 @@
   "gate": {
     "operation": "gate.full",
     "read_only": "after-manifest-proven-bootstrap",
-    "format_policy": "manifest-gated-one-time-bootstrap-canonicalization-then-check-only",
+    "format_policy": "provider-owned-post-patch-canonicalization-plus-startup-rustfmt-authority-probe-then-check-only",
     "green_receipt": "artifacts/certification/current-green.json",
     "green_source_fingerprint_required_for_push": true,
     "cargo_lock_policy": "repair-only-on-explicit-stale-lock-diagnostic-then-recertify-locked",
@@ -42,7 +42,9 @@
     "rollback_fail_closed_on_postimage_drift": true,
     "zip_glob": "*.zip",
     "zip_single_patch_only": true,
-    "transport_archive": "artifacts/patches/transports"
+    "transport_archive": "artifacts/patches/transports",
+    "automatic_post_patch_normalization": true,
+    "startup_rustfmt_authority_probe": true
   },
   "root_hygiene": {
     "schema": "forge.root_hygiene.v1",

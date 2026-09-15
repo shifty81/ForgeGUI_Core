@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased — Project-owned shell / single GUI Lab normalization
+
+- Made the canonical `forge_gui_lab` launch without native operating-system window decorations.
+- Added ForgeGUI-owned draggable title chrome with Minimize, Maximize/Restore, and Close controls plus double-click-title maximize/restore behavior.
+- Added invisible project-owned edge/corner resize handles so manual window placement and sizing remain available without a Windows title frame.
+- Retired the duplicate `forge_gui_next_lab` and `forge_authoring_lab` executables from the workspace and Full Gate; one canonical GUI Lab is now the visual certification surface.
+- Raised the project title strip and base corner radius slightly to better match the approved dark graphite / mint concept references.
+- Installed the shared icon font from the chrome visual bootstrap so the canonical Lab cannot silently render missing semantic glyphs.
+- Locked the four supplied GUI concept images as visual-direction references while retaining dock/workbench focus-fill as a workspace action separate from native-style window maximize/restore.
+
+- Normalized the permanent application menu to File / Edit / View / Help.
+- Made the center infinite canvas the default-priority surface and made document tabs/bottom tray optional.
+- Added grouped universal left rail and pinned/hover-edge reveal behavior for left/right workspace chrome.
+- Slimmed the canvas frame/rulers, converted layer controls to a compact built-in vertical stack, and retained the lightweight canvas HUD.
+- Added Forge Dark, Midnight Mint, Graphite, Warm Ember, and High Contrast theme presets.
+- Added themed native scrolling plus reusable project-owned progress, radial gauge, scrollbar, and segmented-choice widgets.
+- Added the canvas-first shell standard and expanded widget catalog/roadmap for reusable consumer adoption.
+- Separated File / Edit / View / Help as stronger global application chrome with its own lower separator.
+- Increased the bottom status strip for clearer status text and added active-layer feedback.
+- Added subtle rounded outer application corners through transparent borderless shell chrome.
+- Wired the demo layer visibility controls to World, Entities, Lighting, and Guides preview content instead of leaving them cosmetic-only.
+
 ## 0.4.8 — egui 0.36 Canvas input compatibility
 
 - Fixed the next authoritative Rust gate blocker in the recovered Canvas: egui 0.36.2 no longer exposes `InputState::raw_scroll_delta`.

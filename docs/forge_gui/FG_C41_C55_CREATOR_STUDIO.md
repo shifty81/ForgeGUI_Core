@@ -45,3 +45,12 @@ ForgeGUI Core owns reusable UI/workspace mechanics. Projects own gameplay semant
 ## Certification note
 
 This patch deliberately marks the package manifest `requires-canonicalization` because the artifact environment cannot run Rust/rustfmt. The internal PCC is expected to perform its manifest-authorized one-time `cargo fmt --all`, regenerate hashes, then run the normal locked workspace gate. Local PCC GREEN remains authoritative.
+
+
+## FG-C56..FG-C70 continuation
+
+The Creator Studio reference shell is promoted to the canonical `forge_gui_lab`. This removes the
+legacy-launch ambiguity that previously made the PCC run the generic pre-C41 Lab. The shared widget,
+panel, browser, inspector, chrome, layout, and workspace layers are tightened into a compact game-creation
+workbench rather than a generic IDE card layout. The center remains a `RenderSurfaceHost`-backed authoring
+surface so consumer games can attach their own 2D, 2.5D, 3D, voxel, or hybrid renderer backend.

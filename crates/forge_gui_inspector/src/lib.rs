@@ -1,7 +1,7 @@
-//! Shared Inspector / property-grid rendering for ForgeGUI_Core.
+//! Shared Inspector / property-grid rendering for ForgeGUI Core.
 #![forbid(unsafe_code)]
 
-use egui::{Grid, RichText, Ui};
+use egui::{Frame, Grid, Margin, RichText, Stroke, Ui};
 use forge_gui_core::{PropertyObject, PropertyValue};
 use forge_gui_theme::ForgeTheme;
 
@@ -23,22 +23,43 @@ pub fn show_property_object(
     theme: &ForgeTheme,
 ) -> InspectorResponse {
     let mut response = InspectorResponse::default();
+    let metrics = theme.effective_metrics();
 
-    ui.heading(&object.title);
-    ui.label(
-        RichText::new(&object.object_id)
-            .small()
-            .color(color(theme.base.text_muted)),
-    );
-    ui.separator();
+    Frame::new()
+        .fill(color(theme.base.panel_recessed))
+        .stroke(Stroke::new(1.0, color(theme.chrome.separator)))
+        .corner_radius(2)
+        .inner_margin(Margin::symmetric(7, 5))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("◇").color(color(theme.base.accent)));
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(&object.title).strong().size(13.0));
+                    ui.label(
+                        RichText::new(&object.object_id)
+                            .small()
+                            .color(color(theme.base.text_muted)),
+                    );
+                });
+            });
+        });
+
+    ui.add_space(4.0);
+    Frame::new()
+        .fill(color(theme.chrome.panel_header))
+        .inner_margin(Margin::symmetric(6, 3))
+        .show(ui, |ui| {
+            ui.label(RichText::new("PROPERTIES").small().strong());
+        });
 
     Grid::new(("forge.inspector.grid", &object.object_id))
         .num_columns(2)
-        .spacing([12.0, 8.0])
+        .spacing([8.0, 4.0])
         .striped(false)
         .show(ui, |ui| {
             for field in &mut object.fields {
-                ui.label(&field.label);
+                ui.set_min_height(metrics.property_row_height);
+                forge_gui_widgets::property_label(ui, &field.label, theme);
 
                 let before = field.value.clone();
                 ui.add_enabled_ui(!field.read_only, |ui| match &mut field.value {
@@ -56,7 +77,7 @@ pub fn show_property_object(
                     }
                     PropertyValue::Reference(value) => {
                         ui.horizontal(|ui| {
-                            ui.add(egui::TextEdit::singleline(value).desired_width(180.0));
+                            ui.add(egui::TextEdit::singleline(value).desired_width(150.0));
                             let _ = ui.small_button("…").on_hover_text("Browse references");
                         });
                     }

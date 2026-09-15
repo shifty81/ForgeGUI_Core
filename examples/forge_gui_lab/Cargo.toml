@@ -4,7 +4,21 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+
 [dependencies]
-# Intentionally no direct `egui` dependency: the Lab certifies the public `forge_gui::egui` facade.
 eframe = { version = "=0.36.2", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland", "x11"] }
-forge_gui = { path = "../../crates/forge_gui" }
+forge_gui_core = { path = "../../crates/forge_gui_core" }
+forge_gui_icons = { path = "../../crates/forge_gui_icons" }
+forge_gui_widgets = { path = "../../crates/forge_gui_widgets" }
+forge_gui_theme = { path = "../../crates/forge_gui_theme" }
+forge_gui_panels = { path = "../../crates/forge_gui_panels" }
+forge_gui_chrome = { path = "../../crates/forge_gui_chrome" }
+forge_gui_layout = { path = "../../crates/forge_gui_layout" }
+forge_gui_rails = { path = "../../crates/forge_gui_rails" }
+forge_gui_workspace = { path = "../../crates/forge_gui_workspace" }
+forge_gui_browser = { path = "../../crates/forge_gui_browser" }
+forge_gui_inspector = { path = "../../crates/forge_gui_inspector" }
+forge_gui_command = { path = "../../crates/forge_gui_command" }
+forge_render_core = { path = "../../crates/forge_render_core" }
+forge_render_surface = { path = "../../crates/forge_render_surface" }
+forge_scene_core = { path = "../../crates/forge_scene_core" }

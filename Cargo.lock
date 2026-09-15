@@ -1190,20 +1190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "forge_authoring_lab"
-version = "0.4.8"
-dependencies = [
- "eframe",
- "forge_authoring_core",
- "forge_authoring_egui",
- "forge_gui_core",
- "forge_gui_theme",
- "forge_runtime_bridge",
- "forge_runtime_core",
- "forge_scene_core",
-]
-
-[[package]]
 name = "forge_engine"
 version = "0.4.8"
 dependencies = [
@@ -1219,16 +1205,20 @@ name = "forge_gui"
 version = "0.4.8"
 dependencies = [
  "egui",
+ "forge_gui_browser",
  "forge_gui_canvas",
  "forge_gui_chrome",
+ "forge_gui_command",
  "forge_gui_console",
  "forge_gui_core",
  "forge_gui_egui",
  "forge_gui_icons",
+ "forge_gui_inspector",
  "forge_gui_layout",
  "forge_gui_notify",
  "forge_gui_panels",
  "forge_gui_pie",
+ "forge_gui_rails",
  "forge_gui_theme",
  "forge_gui_widgets",
  "forge_gui_workspace",
@@ -1242,6 +1232,7 @@ dependencies = [
  "egui",
  "forge_gui_core",
  "forge_gui_theme",
+ "forge_gui_widgets",
  "serde",
 ]
 
@@ -1320,25 +1311,11 @@ dependencies = [
  "egui",
  "forge_gui_core",
  "forge_gui_theme",
+ "forge_gui_widgets",
 ]
 
 [[package]]
 name = "forge_gui_lab"
-version = "0.4.8"
-dependencies = [
- "eframe",
- "forge_gui",
-]
-
-[[package]]
-name = "forge_gui_layout"
-version = "0.4.8"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "forge_gui_next_lab"
 version = "0.4.8"
 dependencies = [
  "eframe",
@@ -1350,12 +1327,20 @@ dependencies = [
  "forge_gui_inspector",
  "forge_gui_layout",
  "forge_gui_panels",
+ "forge_gui_rails",
  "forge_gui_theme",
  "forge_gui_widgets",
  "forge_gui_workspace",
  "forge_render_core",
  "forge_render_surface",
  "forge_scene_core",
+]
+
+[[package]]
+name = "forge_gui_layout"
+version = "0.4.8"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

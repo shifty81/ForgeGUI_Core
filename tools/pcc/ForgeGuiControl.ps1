@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 $Root = [IO.Path]::GetFullPath((Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path)
 Set-Location $Root
 
-$ProviderVersion = "0.4.8"
+$ProviderVersion = "0.4.10"
 $CanonicalRepository = "https://github.com/shifty81/ForgeGUI_Core.git"
 $SessionStamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $LogDir = Join-Path $Root "artifacts\logs\sessions"
@@ -12,9 +12,12 @@ $CertDir = Join-Path $Root "artifacts\certification"
 $HandoffDir = Join-Path $Root "artifacts\handoff"
 $GreenPath = Join-Path $CertDir "current-green.json"
 $LatestHandoffPath = Join-Path $HandoffDir "latest-handoff.json"
+$PatchStateDir = Join-Path $Root "artifacts\patches\state"
+$NeedsGatePath = Join-Path $PatchStateDir "needs-gate.json"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 New-Item -ItemType Directory -Force -Path $CertDir | Out-Null
 New-Item -ItemType Directory -Force -Path $HandoffDir | Out-Null
+New-Item -ItemType Directory -Force -Path $PatchStateDir | Out-Null
 $LogPath = Join-Path $LogDir "forgegui-pcc-$SessionStamp.log"
 $script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [IO.File]::WriteAllText($LogPath, "", $script:Utf8NoBom)
@@ -178,6 +181,208 @@ function Test-LockRefreshFailure {
     )
 }
 
+function Test-PathSetTouchesRust {
+    param([string[]]$Paths)
+    foreach ($rel in @($Paths)) {
+        if (([string]$rel).ToLowerInvariant().EndsWith(".rs")) { return $true }
+    }
+    return $false
+}
+
+function Test-PathSetTouchesCargoGraph {
+    param([string[]]$Paths)
+    foreach ($rel in @($Paths)) {
+        $lower = ([string]$rel).Replace('\','/').ToLowerInvariant()
+        if ($lower -eq "cargo.toml" -or $lower.EndsWith("/cargo.toml") -or $lower -eq "cargo.lock") {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Get-PackageManifestFormatState {
+    $manifestPath = Join-Path $Root "PACKAGE_MANIFEST.json"
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { return $null }
+    try {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        return [string]$manifest.format_state
+    } catch {
+        throw "PACKAGE_MANIFEST.json is unreadable during patch normalization."
+    }
+}
+
+function Invoke-ControlledCargoLockReconcile {
+    param([bool]$AllowRefresh = $true)
+
+    $lockPath = Join-Path $Root "Cargo.lock"
+    if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+        if (-not $AllowRefresh) {
+            throw "Cargo.lock is missing; Full Gate or patch normalization must regenerate it."
+        }
+        Log "INFO" "Cargo.lock is missing after patch application. Generating the workspace lockfile."
+        Run-Native "post-patch generate Cargo.lock" "cargo" @("generate-lockfile")
+    }
+
+    $probe = Invoke-NativeResult "post-patch Cargo metadata / locked probe" "cargo" @(
+        "metadata","--locked","--format-version","1","--no-deps"
+    )
+    if ($probe.ExitCode -eq 0) {
+        Log "PASS" "Cargo.lock / workspace metadata are synchronized"
+        return
+    }
+
+    if (-not (Test-LockRefreshFailure $probe.Output)) {
+        $tail = Get-NativeFailureTail $probe.Output
+        if ([string]::IsNullOrWhiteSpace($tail)) {
+            throw "Cargo metadata locked probe failed with exit code $($probe.ExitCode)"
+        }
+        throw "Cargo metadata locked probe failed with exit code $($probe.ExitCode)`n$tail"
+    }
+
+    if (-not $AllowRefresh) {
+        throw "Cargo.lock is stale for the current workspace. Apply/update normalization or Full Gate is required."
+    }
+
+    Log "WARN" "Cargo.lock is stale after a governed patch. Performing one controlled lock refresh."
+    Run-Native "post-patch refresh Cargo.lock" "cargo" @("generate-lockfile")
+    Run-Native "post-patch validate Cargo.lock" "cargo" @(
+        "metadata","--locked","--format-version","1","--no-deps"
+    )
+}
+
+function Get-PatchTransactionBackupPaths {
+    param([string[]]$TouchedPaths)
+
+    $set = @{}
+    foreach ($rel in @($TouchedPaths)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$rel)) {
+            $normalized = ([string]$rel).Replace('\','/')
+            $set[$normalized.ToLowerInvariant()] = $normalized
+        }
+    }
+
+    # Normalization may rewrite the package manifest and Cargo.lock.
+    $set["package_manifest.json"] = "PACKAGE_MANIFEST.json"
+    $set["cargo.lock"] = "Cargo.lock"
+
+    # rustfmt --all is intentionally project-wide. Back up every governed Rust file
+    # for every patch transaction so a normalization or manifest-state transition
+    # can always roll the complete source transformation back safely.
+    foreach ($rel in @(Get-GovernedPackageFilePaths)) {
+        if ($rel.ToLowerInvariant().EndsWith(".rs")) {
+            $set[$rel.ToLowerInvariant()] = $rel
+        }
+    }
+
+    return @($set.Values | Sort-Object)
+}
+
+function Invoke-PostPatchNormalization {
+    param(
+        [string[]]$TouchedPaths,
+        [bool]$StartupRecovery = $false
+    )
+
+    $manifestState = Get-PackageManifestFormatState
+    $rustRequired = (Test-PathSetTouchesRust $TouchedPaths) -or ($manifestState -eq "requires-canonicalization")
+    $cargoRequired = (Test-PathSetTouchesCargoGraph $TouchedPaths) -or $StartupRecovery
+
+    if ($rustRequired) {
+        Log "INFO" "Post-patch normalization: canonicalizing Rust source automatically."
+        Run-Native "post-patch cargo fmt apply" "cargo" @("fmt","--all")
+        Run-Native "post-patch cargo fmt check" "cargo" @("fmt","--all","--check")
+    }
+
+    if ($cargoRequired) {
+        Invoke-ControlledCargoLockReconcile $true
+    }
+
+    # Any controlled transformation becomes the new governed source authority.
+    if ($rustRequired -or $cargoRequired -or $manifestState -eq "requires-canonicalization") {
+        Update-PackageManifestHashes
+        Test-PackageManifest
+    }
+
+    return [pscustomobject]@{
+        rustfmt = [bool]$rustRequired
+        cargoLock = [bool]$cargoRequired
+        manifestState = (Get-PackageManifestFormatState)
+    }
+}
+
+function Repair-PendingPatchNormalizationIfNeeded {
+    $manifestState = Get-PackageManifestFormatState
+    $state = Read-NeedsGateState
+
+    $requiresRecovery = ($manifestState -eq "requires-canonicalization")
+    if ($null -ne $state -and -not [bool]$state.normalized) {
+        $requiresRecovery = $true
+    }
+
+    # Provider-transition recovery must trust rustfmt itself, not only the package
+    # manifest flag. An older provider can reconcile post-image hashes and leave
+    # format_state=canonical even though newly-written Rust has not been formatted.
+    $rustfmtDrift = $false
+    if (-not $requiresRecovery) {
+        $fmtProbe = Invoke-NativeResult "startup rustfmt canonical probe" "cargo" @("fmt","--all","--check")
+        if ($fmtProbe.ExitCode -ne 0) {
+            $rustfmtDrift = $true
+            $requiresRecovery = $true
+            Log "WARN" "Rust source is not rustfmt-canonical; automatic startup normalization is required."
+        }
+    }
+
+    if (-not $requiresRecovery) { return }
+
+    $latest = @(Get-ActivePatchReceipts | Sort-Object appliedAt | Select-Object -Last 1)
+    $touched = @()
+    $patchId = $null
+    if ($latest.Count -gt 0) {
+        $touched = @($latest[0].touchedPaths)
+        $patchId = [string]$latest[0].id
+    }
+
+    # If rustfmt itself detected drift, force the Rust branch even when the newest
+    # receipt is only a provider/documentation patch.
+    if ($rustfmtDrift) {
+        $touched = @($touched) + @("__startup_rustfmt_recovery__.rs")
+    }
+
+    Log "WARN" "A previously applied patch requires automatic normalization before normal PCC use."
+    [void](Invoke-PostPatchNormalization $touched $true)
+    Write-NeedsGateState "Patch/update normalization completed automatically; explicit Full Gate is required." $patchId $true
+    Clear-Green
+    Log "PASS" "Patch/update normalization is complete. Project is ready for Full Gate."
+}
+
+function Assert-RunReady {
+    $pendingCount = @(Get-ChildItem -LiteralPath $Root -File -Filter "*.patch" -ErrorAction SilentlyContinue).Count
+    if ($pendingCount -gt 0) {
+        throw "Run blocked: $pendingCount root patch transport(s) are still pending."
+    }
+
+    $state = Read-NeedsGateState
+    if ($null -ne $state) {
+        throw "Run blocked: $($state.state). Run FULL QUALITY GATE / CERTIFY GREEN first."
+    }
+
+    Test-PackageManifest
+    if ((Get-PackageManifestFormatState) -ne "canonical") {
+        throw "Run blocked: package manifest is not canonical. Run Full Gate."
+    }
+
+    $green = Read-Green
+    if ($null -eq $green) {
+        throw "Run blocked: no current GREEN certification exists. Run Full Gate first."
+    }
+    $currentFingerprint = Get-SourceFingerprint
+    if ([string]$green.sourceFingerprint -ne $currentFingerprint) {
+        throw "Run blocked: source changed after GREEN certification. Run Full Gate again."
+    }
+
+    Invoke-ControlledCargoLockReconcile $false
+}
+
 function Run-LockedWorkspaceCheck {
     $arguments = @("check","--locked","--workspace","--all-targets")
     $first = Invoke-NativeResult "cargo check workspace / locked preflight" "cargo" $arguments
@@ -255,6 +460,60 @@ function Clear-Green {
     if (Test-Path -LiteralPath $GreenPath) {
         Remove-Item -LiteralPath $GreenPath -Force
     }
+}
+
+function Write-NeedsGateState {
+    param(
+        [Parameter(Mandatory=$true)][string]$Reason,
+        [string]$PatchId = $null,
+        [bool]$Normalized = $false
+    )
+
+    New-Item -ItemType Directory -Force -Path $PatchStateDir | Out-Null
+    $payload = [ordered]@{
+        schema = "forge.patch_state.v1"
+        state = "PATCH_APPLIED_NEEDS_GATE"
+        reason = $Reason
+        patchId = $PatchId
+        normalized = $Normalized
+        updatedAt = (Get-Date).ToString("o")
+    }
+    [IO.File]::WriteAllText(
+        $NeedsGatePath,
+        ($payload | ConvertTo-Json -Depth 5) + [Environment]::NewLine,
+        $script:Utf8NoBom
+    )
+}
+
+function Read-NeedsGateState {
+    if (-not (Test-Path -LiteralPath $NeedsGatePath -PathType Leaf)) { return $null }
+    try {
+        return Get-Content -LiteralPath $NeedsGatePath -Raw | ConvertFrom-Json
+    } catch {
+        Log "WARN" "Patch state is unreadable and will be treated as requiring a Full Gate."
+        return [pscustomobject]@{
+            state = "PATCH_APPLIED_NEEDS_GATE"
+            reason = "patch state unreadable"
+            patchId = $null
+            normalized = $false
+        }
+    }
+}
+
+function Clear-NeedsGateState {
+    if (Test-Path -LiteralPath $NeedsGatePath) {
+        Remove-Item -LiteralPath $NeedsGatePath -Force
+    }
+}
+
+function Get-PatchStateText {
+    $state = Read-NeedsGateState
+    if ($null -eq $state) { return "READY" }
+    $normalization = if ([bool]$state.normalized) { "normalized / Full Gate required" } else { "normalization required" }
+    if (-not [string]::IsNullOrWhiteSpace([string]$state.patchId)) {
+        return "$($state.state) / $normalization / $($state.patchId)"
+    }
+    return "$($state.state) / $normalization"
 }
 
 function Read-Green {
@@ -381,6 +640,71 @@ function Package-Debug {
             }
         }
 
+        $patchEvidenceDir = Join-Path $tmp "patch-evidence"
+        New-Item -ItemType Directory -Force -Path $patchEvidenceDir | Out-Null
+        $evidencePatchFiles = New-Object System.Collections.Generic.List[IO.FileInfo]
+
+        $pendingPatchNames = @()
+        foreach ($pendingPatch in @(Get-ChildItem -LiteralPath $Root -File -Filter "*.patch" -ErrorAction SilentlyContinue | Sort-Object Name)) {
+            $pendingPatchNames += $pendingPatch.Name
+            [void]$evidencePatchFiles.Add($pendingPatch)
+            Copy-Item -LiteralPath $pendingPatch.FullName -Destination (Join-Path $patchEvidenceDir $pendingPatch.Name) -Force
+        }
+
+        $rebaseNeededNames = @()
+        $rebaseNeededDir = Join-Path $Root "artifacts\patches\rebase-needed"
+        if (Test-Path -LiteralPath $rebaseNeededDir) {
+            $rebaseCandidates = @(
+                Get-ChildItem -LiteralPath $rebaseNeededDir -File -Filter "*.patch" -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 5
+            )
+            foreach ($candidate in $rebaseCandidates) {
+                $rebaseNeededNames += $candidate.Name
+                [void]$evidencePatchFiles.Add($candidate)
+                Copy-Item -LiteralPath $candidate.FullName -Destination (Join-Path $patchEvidenceDir $candidate.Name) -Force
+                $record = $candidate.FullName + ".rebase.json"
+                if (Test-Path -LiteralPath $record -PathType Leaf) {
+                    Copy-Item -LiteralPath $record -Destination (Join-Path $patchEvidenceDir ([IO.Path]::GetFileName($record))) -Force
+                }
+            }
+        }
+
+        $currentSourceDir = Join-Path $patchEvidenceDir "current-source"
+        New-Item -ItemType Directory -Force -Path $currentSourceDir | Out-Null
+        $evidencePaths = @{}
+        foreach ($evidencePatch in @($evidencePatchFiles)) {
+            try {
+                foreach ($rel in @(Get-PatchTouchedPaths $evidencePatch)) {
+                    $key = $rel.ToLowerInvariant()
+                    if ($evidencePaths.ContainsKey($key)) { continue }
+
+                    $source = Join-Path $Root $rel.Replace('/', '\')
+                    $exists = Test-Path -LiteralPath $source -PathType Leaf
+                    $hash = $null
+                    if ($exists) {
+                        $destination = Join-Path $currentSourceDir $rel.Replace('/', '\')
+                        $parent = Split-Path -Parent $destination
+                        if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+                        Copy-Item -LiteralPath $source -Destination $destination -Force
+                        $hash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+                    }
+
+                    $evidencePaths[$key] = [ordered]@{
+                        path = $rel
+                        exists = [bool]$exists
+                        sha256 = $hash
+                    }
+                }
+            } catch {
+                Log "WARN" "Unable to collect current-source evidence for $($evidencePatch.Name): $($_.Exception.Message)"
+            }
+        }
+
+        @($evidencePaths.Values | Sort-Object path) |
+            ConvertTo-Json -Depth 6 |
+            Set-Content -LiteralPath (Join-Path $patchEvidenceDir "current-source-index.json") -Encoding UTF8
+
         $rustc = Capture-Native "rustc" @("--version")
         $cargo = Capture-Native "cargo" @("--version")
         $gitVersion = Capture-Native "git" @("--version")
@@ -388,10 +712,6 @@ function Package-Debug {
         try { $fingerprint = Get-SourceFingerprint } catch { $fingerprint = "unavailable: $($_.Exception.Message)" }
 
         Set-Content -LiteralPath (Join-Path $tmp "failure.txt") -Value $Reason -Encoding UTF8
-        $pendingPatchNames = @()
-        foreach ($pendingPatch in @(Get-ChildItem -LiteralPath $Root -File -Filter "*.patch" -ErrorAction SilentlyContinue)) {
-            $pendingPatchNames += $pendingPatch.Name
-        }
         [ordered]@{
             schema = "forge.debug.context.v3"
             bundleId = $bundleId
@@ -410,6 +730,8 @@ function Package-Debug {
             git = Get-GitStatusText
             green = Get-GreenStatus
             pendingPatches = $pendingPatchNames
+            rebaseNeededPatches = $rebaseNeededNames
+            patchEvidenceDirectory = "patch-evidence"
         } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $tmp "context.json") -Encoding UTF8
 
         Compress-Archive -Path (Join-Path $tmp "*") -DestinationPath $zip -Force
@@ -672,55 +994,179 @@ function Rollback-LastPatch {
     $txn = Split-Path -Parent $receipt.FullName
     $data = Get-Content -LiteralPath $receipt.FullName -Raw | ConvertFrom-Json
     if ($null -eq $data.postImages) { throw "Rollback blocked: transaction predates post-image safety metadata" }
-    Assert-PatchPostImagesCurrent $data.postImages
+    $safetyImages = if ($null -ne $data.transactionPostImages) { $data.transactionPostImages } else { $data.postImages }
+    Assert-PatchPostImagesCurrent $safetyImages
     Restore-PatchTransaction $txn
     $data | Add-Member -NotePropertyName rolledBackAt -NotePropertyValue (Get-Date).ToString('o') -Force
     $data | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $receipt.FullName -Encoding UTF8
     Clear-Green
+    Write-NeedsGateState "Patch rollback changed governed source; explicit Full Gate is required." $data.id $true
     Log "PASS" "Rolled back patch transaction $($data.id). GREEN invalidated."
+}
+
+function Resolve-SupersededRootPatches {
+    param(
+        [string[]]$AppliedPaths,
+        [datetime]$AppliedTransportWriteTimeUtc
+    )
+
+    $appliedSet = @{}
+    foreach ($rel in @($AppliedPaths)) {
+        $normalized = ([string]$rel).Replace('\','/').ToLowerInvariant()
+        $appliedSet[$normalized] = $true
+    }
+
+    $supersededDir = Join-Path $Root "artifacts\patches\superseded"
+    foreach ($candidate in @(Get-ChildItem -LiteralPath $Root -File -Filter "*.patch" -ErrorAction SilentlyContinue | Sort-Object Name)) {
+        try {
+            # Never auto-classify a newer transport as stale.
+            if ($candidate.LastWriteTimeUtc -gt $AppliedTransportWriteTimeUtc) { continue }
+
+            $candidatePaths = @(Get-PatchTouchedPaths $candidate)
+            if ($candidatePaths.Count -eq 0) { continue }
+
+            $covered = $true
+            foreach ($rel in $candidatePaths) {
+                if (-not $appliedSet.ContainsKey(([string]$rel).Replace('\','/').ToLowerInvariant())) {
+                    $covered = $false
+                    break
+                }
+            }
+            if (-not $covered) { continue }
+
+            # A still-applicable patch is not stale. Only archive a covered older
+            # transport that no longer applies after the newer cumulative patch.
+            $probe = Invoke-NativeProcess "superseded patch probe" "git" @(
+                "apply","--no-index","--check","--whitespace=error-all",$candidate.FullName
+            ) $false $false $false
+            if ($probe.ExitCode -eq 0) { continue }
+
+            New-Item -ItemType Directory -Force -Path $supersededDir | Out-Null
+            $destination = Join-Path $supersededDir (
+                "{0}-{1}" -f (Get-Date -Format "yyyyMMdd-HHmmssfff"), $candidate.Name
+            )
+            Move-Item -LiteralPath $candidate.FullName -Destination $destination -Force
+            Log "PASS" "Archived superseded older root patch: $($candidate.Name)"
+        } catch {
+            Log "WARN" "Superseded-patch classification skipped for $($candidate.Name): $($_.Exception.Message)"
+        }
+    }
+}
+
+function Move-PatchToRebaseNeeded {
+    param(
+        [Parameter(Mandatory=$true)][IO.FileInfo]$Patch,
+        [Parameter(Mandatory=$true)][string]$Reason,
+        [string[]]$TouchedPaths = @()
+    )
+
+    $rebaseDir = Join-Path $Root "artifacts\patches\rebase-needed"
+    New-Item -ItemType Directory -Force -Path $rebaseDir | Out-Null
+
+    $stamp = Get-Date -Format "yyyyMMdd-HHmmssfff"
+    $destination = Join-Path $rebaseDir ("{0}-{1}" -f $stamp, $Patch.Name)
+    $sha = (Get-FileHash -LiteralPath $Patch.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+
+    Move-Item -LiteralPath $Patch.FullName -Destination $destination -Force
+
+    $recordPath = $destination + ".rebase.json"
+    [ordered]@{
+        schema = "forge.patch.rebase_needed.v1"
+        file = $Patch.Name
+        sha256 = $sha
+        detectedAt = (Get-Date).ToString("o")
+        sourceFingerprint = (Get-SourceFingerprint)
+        touchedPaths = @($TouchedPaths)
+        reason = $Reason
+        archivedPatch = (Get-RelativePath $destination)
+        disposition = "preserved-for-rebase"
+    } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath $recordPath -Encoding UTF8
+
+    Log "WARN" "Patch no longer applies to current source and was preserved for rebase: $($Patch.Name)"
+    Log "INFO" "Rebase-needed patch: $(Get-RelativePath $destination)"
+    return $destination
 }
 
 function Apply-Patch {
     param([IO.FileInfo]$Patch)
     $sha = (Get-FileHash -LiteralPath $Patch.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $transportWriteTimeUtc = $Patch.LastWriteTimeUtc
     Log "INFO" "Validating patch: $($Patch.Name) sha256=$sha"
 
     $touched = @(Get-PatchTouchedPaths $Patch)
-    Log "INFO" "Patch touched paths: $($touched.Count)"
-    Run-Native "git apply --check $($Patch.Name)" "git" @(
+    $transactionPaths = @(Get-PatchTransactionBackupPaths $touched)
+    Log "INFO" "Patch touched paths: $($touched.Count); transactional safety paths: $($transactionPaths.Count)"
+
+    $preflight = Invoke-NativeResult "git apply --check $($Patch.Name)" "git" @(
         "apply","--no-index","--check","--whitespace=error-all",$Patch.FullName
     )
+    if ($preflight.ExitCode -ne 0) {
+        $tail = Get-NativeFailureTail $preflight.Output 32
+        if ([string]::IsNullOrWhiteSpace($tail)) {
+            $tail = "git apply --check failed with exit code $($preflight.ExitCode)"
+        }
+
+        $conflictLike = (
+            $preflight.Output -match '(?im)^error:\s+patch failed:' -or
+            $preflight.Output -match '(?im)^error:\s+.+patch does not apply'
+        )
+        if (-not $conflictLike) {
+            throw "git apply preflight failed without a source-conflict signature; patch remains pending.`n$tail"
+        }
+
+        $reason = "Patch is stale against the current governed source and requires rebase.`n$tail"
+        $archived = Move-PatchToRebaseNeeded $Patch $reason $touched
+        throw ("REBASE_REQUIRED::{0}::{1}" -f $Patch.Name, (Get-RelativePath $archived))
+    }
+    Log "PASS" "git apply --check $($Patch.Name)"
 
     $id = "PATCH-" + (Get-Date -Format "yyyyMMdd-HHmmss") + "-" + $sha.Substring(0,8)
     $txn = Join-Path $Root "artifacts\patches\transactions\$id"
     New-Item -ItemType Directory -Force -Path $txn | Out-Null
     Copy-Item -LiteralPath $Patch.FullName -Destination (Join-Path $txn $Patch.Name) -Force
-    Backup-PatchTouchedPaths $touched $txn
+    Backup-PatchTouchedPaths $transactionPaths $txn
 
     $archive = Join-Path $Root "artifacts\patches\applied"
     New-Item -ItemType Directory -Force -Path $archive | Out-Null
     $archivedPatch = Join-Path $archive $Patch.Name
+
     try {
         Run-Native "apply patch $($Patch.Name)" "git" @(
             "apply","--no-index","--whitespace=error-all",$Patch.FullName
         )
+
+        # Formatting, lock synchronization, and governance are part of patch
+        # application. Users should never need a separate rustfmt/lock repair step.
+        $normalization = Invoke-PostPatchNormalization $touched $false
+
         Move-Item -LiteralPath $Patch.FullName -Destination $archivedPatch -Force
 
         $postImages = @(Get-PatchPostImages $touched)
+        $transactionPostImages = @(Get-PatchPostImages $transactionPaths)
         [ordered]@{
-            schema = "forge.patch.receipt.v2"
+            schema = "forge.patch.receipt.v3"
             id = $id
             file = $Patch.Name
             sha256 = $sha
             touchedPaths = $touched
+            transactionPaths = $transactionPaths
             postImages = $postImages
+            transactionPostImages = $transactionPostImages
+            normalization = [ordered]@{
+                rustfmt = [bool]$normalization.rustfmt
+                cargoLock = [bool]$normalization.cargoLock
+                manifestState = [string]$normalization.manifestState
+            }
             appliedAt = (Get-Date).ToString("o")
             rolledBackAt = $null
-        } | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $txn "receipt.json") -Encoding UTF8
+        } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $txn "receipt.json") -Encoding UTF8
 
-        # Patch post-images are authoritative for the files changed by this
-        # transaction. Reconcile only those verified files into package governance.
+        # Reconcile only verified post-images for the actual patch paths. The full
+        # manifest was already regenerated if normalization changed source.
         Reconcile-PackageManifestFromAppliedReceipts
+
+        Write-NeedsGateState "Patch applied and normalized automatically; explicit Full Gate is required." $id $true
+        Resolve-SupersededRootPatches $touched $transportWriteTimeUtc
     } catch {
         try { Restore-PatchTransaction $txn } catch { Log "FAIL" "Automatic patch rollback also failed: $($_.Exception.Message)" }
         if ((Test-Path -LiteralPath $archivedPatch) -and -not (Test-Path -LiteralPath $Patch.FullName)) {
@@ -730,7 +1176,7 @@ function Apply-Patch {
     }
 
     Clear-Green
-    Log "PASS" "Patch applied transactionally, receipt written, transport archived, and prior GREEN invalidated: $id"
+    Log "PASS" "Patch applied, normalized, receipted, archived, and prior GREEN invalidated: $id"
 }
 
 
@@ -851,10 +1297,20 @@ function Scan-Patches {
     try {
         Apply-Patch $patch
         $script:RestartRequired = $true
-        Log "INFO" "Exactly one patch was applied. Restart the PCC before considering any later transport so provider/source authority is reloaded."
+        Log "INFO" "Exactly one patch was applied and normalized. Restart the PCC; the project will return in NEEDS_GATE state ready for option 1."
         return
     } catch {
-        $reason = "Patch application failed; ordered intake stops and patch remains pending: $($patch.Name) :: $($_.Exception.Message)"
+        $message = [string]$_.Exception.Message
+        if ($message.StartsWith("REBASE_REQUIRED::", [StringComparison]::Ordinal)) {
+            $parts = @($message -split "::", 3)
+            $archivePath = if ($parts.Count -ge 3) { $parts[2] } else { "artifacts/patches/rebase-needed" }
+            $reason = "Patch requires rebase and has been removed from active intake: $($patch.Name) -> $archivePath"
+            Log "WARN" $reason
+            [void](Package-Debug $reason "PATCH_REBASE" $true)
+            return
+        }
+
+        $reason = "Patch intake failed; ordered intake stops and patch remains pending: $($patch.Name) :: $message"
         Log "FAIL" $reason
         [void](Package-Debug $reason "PATCH_FAIL" $true)
         return
@@ -1008,8 +1464,6 @@ function Write-GreenReceipt {
             "cargo test --locked --workspace --all-targets",
             "cargo clippy --locked --workspace --all-targets -- -D warnings",
             "cargo build --locked --release -p forge_gui_lab",
-            "cargo build --locked --release -p forge_gui_next_lab",
-            "cargo build --locked --release -p forge_authoring_lab",
             "native tool PASS/FAIL determined exclusively by process exit code"
         )
     }
@@ -1024,6 +1478,15 @@ function Full-Gate {
     $gateId = "QG-" + (Get-Date -Format "yyyyMMdd-HHmmss") + "-full-" + ([guid]::NewGuid().ToString("N").Substring(0,8))
 
     try {
+        $pendingCount = @(Get-ChildItem -LiteralPath $Root -File -Filter "*.patch" -ErrorAction SilentlyContinue).Count
+        if ($pendingCount -gt 0) {
+            throw "Full Gate blocked: $pendingCount root patch transport(s) are still pending."
+        }
+        $patchState = Read-NeedsGateState
+        if ($null -ne $patchState -and -not [bool]$patchState.normalized) {
+            throw "Full Gate blocked: patch/update normalization has not completed."
+        }
+
         Get-Content -LiteralPath (Join-Path $Root "project.control.json") -Raw | ConvertFrom-Json | Out-Null
         Log "PASS" "project.control.json"
         Test-PccSelf
@@ -1042,19 +1505,16 @@ function Full-Gate {
         Run-Native "Cargo workspace metadata / locked" "cargo" @("metadata","--locked","--format-version","1","--no-deps")
         Run-Native "cargo test workspace" "cargo" @("test","--locked","--workspace","--all-targets")
         Run-Native "cargo clippy workspace" "cargo" @("clippy","--locked","--workspace","--all-targets","--","-D","warnings")
-        Run-Native "release build legacy lab" "cargo" @("build","--locked","--release","-p","forge_gui_lab")
-        Run-Native "release build next lab" "cargo" @("build","--locked","--release","-p","forge_gui_next_lab")
-        Run-Native "release build authoring lab" "cargo" @("build","--locked","--release","-p","forge_authoring_lab")
+        Run-Native "release build canonical GUI Lab" "cargo" @("build","--locked","--release","-p","forge_gui_lab")
 
-        foreach ($exeName in @("forge_gui_lab.exe","forge_gui_next_lab.exe","forge_authoring_lab.exe")) {
-            $releaseExe = Join-Path $Root ("target\release\" + $exeName)
-            if (-not (Test-Path -LiteralPath $releaseExe)) {
-                throw "release build completed but expected lab executable is missing: $releaseExe"
-            }
-            Log "PASS" "Release executable present: $releaseExe"
+        $releaseExe = Join-Path $Root "target\release\forge_gui_lab.exe"
+        if (-not (Test-Path -LiteralPath $releaseExe)) {
+            throw "release build completed but canonical GUI Lab executable is missing: $releaseExe"
         }
+        Log "PASS" "Canonical GUI Lab executable present: $releaseExe"
 
         Write-GreenReceipt $gateId
+        Clear-NeedsGateState
         Log "PASS" "FULL QUALITY GATE GREEN :: $gateId"
         [void](Package-Debug "FULL QUALITY GATE GREEN :: $gateId" "PASS" $false)
         return $true
@@ -1072,12 +1532,13 @@ function Fmt-Fix {
     Run-Native "cargo fmt check" "cargo" @("fmt","--all","--check")
     Update-PackageManifestHashes
     Clear-Green
+    Write-NeedsGateState "Manual rustfmt repair changed/revalidated governed source; explicit Full Gate is required." $null $true
     Log "INFO" "Source formatting changed or was revalidated; run Full Gate before commit/push."
 }
 
 function Run-Lab {
-    Ensure-CargoLock
-    Run-Native "ForgeGUI Universal Lab" "cargo" @("run","--locked","-p","forge_gui_lab")
+    Assert-RunReady
+    Run-Native "ForgeGUI Core Creator Studio" "cargo" @("run","--locked","-p","forge_gui_lab")
 }
 
 function Patch-Status {
@@ -1088,6 +1549,16 @@ function Patch-Status {
     $zipTransports = @(Get-ChildItem -LiteralPath $Root -File -Filter "*.zip" -ErrorAction SilentlyContinue | Sort-Object Name)
     Write-Host "Root ZIP transports: $($zipTransports.Count)"
     foreach ($transport in $zipTransports) { Write-Host "  - $($transport.Name)" }
+
+    $rebaseDir = Join-Path $Root "artifacts\patches\rebase-needed"
+    $rebaseNeeded = @()
+    if (Test-Path -LiteralPath $rebaseDir) {
+        $rebaseNeeded = @(Get-ChildItem -LiteralPath $rebaseDir -File -Filter "*.patch" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+    }
+    Write-Host "Rebase-needed patches: $($rebaseNeeded.Count)"
+    foreach ($candidate in ($rebaseNeeded | Select-Object -First 10)) {
+        Write-Host "  - $(Get-RelativePath $candidate.FullName)"
+    }
 
     $transactions = Join-Path $Root "artifacts\patches\transactions"
     if (Test-Path -LiteralPath $transactions) {
@@ -1105,11 +1576,12 @@ function Status {
     Write-Host "Repository : $Root"
     Write-Host "Git        : $(Get-GitStatusText)"
     Write-Host "Gate       : $(Get-GreenStatus)"
+    Write-Host "PatchState : $(Get-PatchStateText)"
     Write-Host "Patches    : $(@(Get-ChildItem -LiteralPath $Root -File -Filter '*.patch').Count) root .patch file(s)"
     Write-Host "PowerShell : $($PSVersionTable.PSVersion)"
     Write-Host "Authority  : Project-owned PCC / forge.project.v1"
     Write-Host "Provider   : forge.internal_pcc.v1 / $ProviderVersion"
-    Write-Host "Intake     : startup scan + explicit approval; patch intake precedes hygiene"
+    Write-Host "Intake     : startup scan + explicit approval + automatic patch normalization"
 }
 
 function Get-ProviderOperations {
@@ -1126,7 +1598,8 @@ function Get-ProviderCapabilities {
         "forge.internal_pcc.v1","forge.project.v1","forge.patch.v1",
         "forge.project_status.v1","forge.project_health.v1","forge.quality_gate.v1",
         "standalone-source","root-patch-intake","root-zip-patch-intake","transactional-patch-backup",
-        "patch-receipts","patch-rollback","receipt-manifest-reconcile","duplicate-transport-suppression","auto-debug-handoff","green-commit-push",
+        "patch-receipts","patch-rollback","receipt-manifest-reconcile","duplicate-transport-suppression","superseded-transport-classification","rebase-needed-patch-quarantine","debug-patch-evidence","debug-current-source-rebase-evidence","auto-debug-handoff","green-commit-push",
+        "automatic-post-patch-rustfmt","controlled-post-patch-lock-refresh","patch-needs-gate-state","run-green-guard",
         "ordered-one-patch-per-session","package-manifest-verification","exit-code-native-authority",
         "provider-json-discovery","structural-rails","center-dock-workspace",
         "forgegui-sdk","infinite-canvas","pie-contract","notifications",
@@ -1148,6 +1621,7 @@ function Write-ProviderStatusJson {
         provider = [ordered]@{ id="forge.internal_pcc.v1"; version=$ProviderVersion }
         git = $gitStatus
         green = $greenStatus
+        patchState = Get-PatchStateText
         pendingPatches = $pending
         sourceFingerprint = $fingerprint
     } | ConvertTo-Json -Depth 7
@@ -1159,7 +1633,8 @@ function Write-ProviderHealthJson {
     $pendingCount = @(Get-ChildItem -LiteralPath $Root -File -Filter '*.patch' -ErrorAction SilentlyContinue).Count
     $greenCurrent = $false
     if ($null -ne $green) { $greenCurrent = ([string]$green.sourceFingerprint -eq $fingerprint) }
-    $state = if ($pendingCount -gt 0) { "attention" } elseif ($greenCurrent) { "green" } elseif ($null -ne $green) { "stale-green" } else { "uncertified" }
+    $patchState = Read-NeedsGateState
+    $state = if ($pendingCount -gt 0) { "attention" } elseif ($null -ne $patchState) { "needs-gate" } elseif ($greenCurrent) { "green" } elseif ($null -ne $green) { "stale-green" } else { "uncertified" }
     $handoff = $null
     if (Test-Path -LiteralPath $LatestHandoffPath) { $handoff = Get-RelativePath $LatestHandoffPath }
     [ordered]@{
@@ -1168,6 +1643,7 @@ function Write-ProviderHealthJson {
         version = "0.4.8"
         state = $state
         greenCurrent = $greenCurrent
+        patchState = if ($null -ne $patchState) { [string]$patchState.state } else { "READY" }
         pendingPatchCount = $pendingCount
         handoff = $handoff
     } | ConvertTo-Json -Depth 6
@@ -1347,12 +1823,12 @@ function Advanced-Menu {
         Write-Host "------------------------------------------------------------------------"
         Write-Host " ForgeGUI Advanced / Provider Operations"
         Write-Host "------------------------------------------------------------------------"
-        Write-Host " 1. Format source / rustfmt repair"
+        Write-Host " 1. Format source / rustfmt repair (manual fallback)"
         Write-Host " 2. Root hygiene"
         Write-Host " 3. Show current GREEN receipt"
         Write-Host " 4. Git setup / remote status"
         Write-Host " 5. Open handoff folder"
-        Write-Host " 6. Synchronize Cargo.lock"
+        Write-Host " 6. Synchronize Cargo.lock (manual fallback)"
         Write-Host " 7. Roll back last applied patch"
         Write-Host " 0. Back"
         $choice = Read-Host "Select"
@@ -1367,6 +1843,7 @@ function Advanced-Menu {
                     Run-Native "synchronize Cargo.lock" "cargo" @("generate-lockfile")
                     Run-Native "validate synchronized Cargo.lock" "cargo" @("metadata","--locked","--format-version","1","--no-deps")
                     Clear-Green
+                    Write-NeedsGateState "Manual Cargo.lock synchronization changed/revalidated dependency state; explicit Full Gate is required." $null $true
                     Log "INFO" "Cargo.lock synchronized; run Full Gate before commit/push."
                 } catch { Log "FAIL" $_.Exception.Message }
             }
@@ -1437,6 +1914,18 @@ if ($Operation -eq "operations-json") { Write-ProviderOperationsJson; exit 0 }
 Reconcile-PackageManifestFromAppliedReceipts
 Resolve-AlreadyAppliedRootPatches
 
+# Transition recovery: an update applied by an older PCC may have left the
+# package in requires-canonicalization state. Normalize that state automatically
+# before any normal menu, run, gate, or later patch operation.
+try {
+    Repair-PendingPatchNormalizationIfNeeded
+} catch {
+    $reason = "Automatic patch/update normalization failed: $($_.Exception.Message)"
+    Log "FAIL" $reason
+    [void](Package-Debug $reason "PATCH_NORMALIZE_FAIL" $true)
+    exit 1
+}
+
 Log "INFO" "Operation started: startup"
 if ([string]::IsNullOrWhiteSpace($Operation)) {
     [void](Stage-RootPatchArchive)
@@ -1481,7 +1970,12 @@ if ($Operation) {
         "fmt.fix" { Fmt-Fix }
         "root.hygiene" { Root-Hygiene }
         "git.setup" { Git-Setup }
-        "cargo.lock.sync" { Run-Native "synchronize Cargo.lock" "cargo" @("generate-lockfile"); Clear-Green }
+        "cargo.lock.sync" {
+            Run-Native "synchronize Cargo.lock" "cargo" @("generate-lockfile")
+            Run-Native "validate synchronized Cargo.lock" "cargo" @("metadata","--locked","--format-version","1","--no-deps")
+            Clear-Green
+            Write-NeedsGateState "Cargo.lock synchronization changed/revalidated dependency state; explicit Full Gate is required." $null $true
+        }
         "patch.rollback_last" { Rollback-LastPatch }
         "project.health" { Write-ProviderHealthJson }
         "provider.capabilities" { Write-ProviderCapabilitiesJson }

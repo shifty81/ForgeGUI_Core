@@ -35,7 +35,7 @@ impl Default for StructuralLayout {
             status_visible: true,
             left_width: 300.0,
             right_width: 320.0,
-            bottom_height: 170.0,
+            bottom_height: 145.0,
         }
     }
 }
@@ -67,13 +67,13 @@ impl ForgeLayoutState {
             LayoutPreset::WorldAuthoring => StructuralLayout {
                 left_width: 280.0,
                 right_width: 340.0,
-                bottom_height: 190.0,
+                bottom_height: 165.0,
                 ..Default::default()
             },
             LayoutPreset::Animation => StructuralLayout {
                 left_width: 260.0,
                 right_width: 300.0,
-                bottom_height: 240.0,
+                bottom_height: 220.0,
                 ..Default::default()
             },
             LayoutPreset::Scripting => StructuralLayout {

@@ -1,80 +1,89 @@
 # ForgeGUI_Core Current Pass Baseline
 
-Target: independent, modular authoring/runtime/UI foundation for all applications and games.
+Target: a project-owned, canvas-first GUI core that can seed polished desktop tools,
+editors and game-development applications without forcing every consumer into the same
+panel layout.
 
-## Completed cumulative foundation
+## Certified architecture through FG-C75
 
-### FG-C01…FG-C20 — shared GUI/workbench foundation
+- independent reusable ForgeGUI boundary
+- semantic theme/elevation/token system
+- rails, panels, browser, Inspector, command palette, console/notification foundations
+- shared scene, renderer-neutral 2D/3D/Hybrid and universal authoring contracts
+- selection/grid/snap/gizmo/undo foundations
+- GUI-independent runtime and PIE/simulation bridge
+- renderer-surface host and structural layout contracts
+- project-owned borderless shell with draggable title region
+- project-owned Minimize / Maximize-Restore / Close with draggable and double-click-title behavior
+- manual project-owned resize hit regions
+- one canonical runnable `forge_gui_lab`
 
-- independent ForgeGUI_Core library boundary
-- semantic theme/elevation system
-- Forge Dark / Graphite / High Contrast presets
-- Slim Icon / Labeled Tool / Dual Context / Floating Pill rails
-- rail placement, density, collapse, badge and lock policy
-- workbench/focus/bottom-tray state
-- virtualized Asset Browser foundation
-- shared Inspector/property-grid renderer
-- command palette foundation
-- document-map marker lane
-- next-generation GUI Lab
-- PCC certification expansion
+## FG-C76–C82 — Canvas-first shell and reusable chrome
 
-### FG-C21…FG-C40 — universal authoring + runtime foundation
+Current implementation block:
 
-- shared Forge scene schema and stable entity IDs
-- 2D and 3D transforms
-- hierarchy / roots / layers / tags
-- editor-only metadata and runtime scene cloning
-- scene validation
-- renderer-neutral 2D / 3D / Hybrid render contracts
-- 2D camera
-- perspective/orthographic 3D camera
-- Hybrid authoring camera
-- picking contracts
-- Null/headless-safe renderer adapter
-- authoring surface mode/state
-- selection model
-- gizmo/coordinate-space model
-- grid/snap settings
-- undo/redo command stack
-- fixed-step runtime clock
-- headless/rendered/editor-preview runtime modes
-- runtime system lifecycle
-- input snapshots
-- Simulate / PIE / Play From Here / Detached / Standalone / Headless bridge
-- independent ForgeAuthoring Lab
+1. Permanent main-app chrome is reduced to title, File/Edit/View/Help and status.
+2. The center infinite canvas receives layout priority.
+3. The left universal rail groups Transform, Workspace and Runtime actions.
+4. Left rail and right context host can be pinned or revealed from the workspace edge.
+5. The right side is one contextual Inspector/Assets/Widgets surface instead of several
+   always-visible panels.
+6. Document tabs and bottom tool tray are opt-in View chrome.
+7. Canvas-owned chrome includes inset frame, top/left rulers, coordinate ticks,
+   slim context-aware rulers, a compact vertical layer stack and lightweight camera/selection HUD.
+8. Forge Dark, Midnight Mint, Graphite, Warm Ember and High Contrast are built-in presets.
+9. Native scroll areas inherit ForgeGUI scroll tokens.
+10. Shared widget core now includes project-owned progress bars, radial gauges,
+    custom scrollbars and segmented-choice controls.
+11. The canonical Lab acts as the visual certification host; reusable behavior lives in
+    shared crates.
 
-## FG-C41…FG-C55 — Creator Studio / universal renderer workspace
+## FG-C83–C90 — Universal control completion
 
-- C41 creator density and metric tokens
-- C42 dedicated product/menu/action/workspace/panel/tray/status chrome tokens
-- C43 reusable panel frame/header primitive
-- C44 reusable section/header and panel action model
-- C45 creator action/compact tool widgets and status badges
-- C46 Creator Studio product/menu/action chrome
-- C47 workspace tab strip and creator tab model
-- C48 status bar and bottom tool-tray chrome
-- C49 durable `forge.workspace_layout.v1` layout schema and presets
-- C50 renderer surface family contract for 2D / 2.5D / 3D / Voxel / Hybrid workflows
-- C51 frame scheduling and focused/visible/obscured/hidden render-surface lifecycle
-- C52 renderer-backed `RenderSurfaceHost` wrapping the universal `RenderBackend` contract
-- C53 reusable renderer workspace widget with local tools and authoring overlays
-- C54 rebuilt Creator Studio Lab with Inspector-left / Assets-right / renderer-center / tools-bottom workflow
-- C55 cumulative strict-Clippy cleanup for the remaining authoring test plus first-pass Creator Studio integration
+Build out the remaining general-purpose chrome behind ForgeGUI adapters:
 
-## FG-C56 onward
+- switches, radio/checkbox families, toggle and segmented controls
+- text/search/password/multiline input families
+- numeric steppers, scrubbers, ranges, vectors, angles and unit-aware editors
+- combo/searchable pickers and path/file/folder/asset/object references
+- color, palette, gradient and curve controls
+- virtualized tree, list, table, tree-table and thumbnail-grid controls
+- splitters, resizable panes, dock compass/drop guides and focus/fill affordances
+- context menus, rich tooltips, popovers, drawers, dialogs, sheets, toasts and banners
+- status pills, operation/progress states, skeleton/loading/empty/error states
+- minimap/navigator/viewport overview widgets
+- normalized hover/pressed/selected/disabled/focus behavior
+- keyboard navigation, focus rings, shortcut discovery and accessibility hooks
 
-Next focus:
+## FG-C91–C100 — Authoring chrome + consumer SDK certification
 
-1. GPU-backed surface presenter/texture bridge for wgpu/OpenGL/custom game renderers
-2. real `egui_dock` structural docking for Inspector/Assets/Outliner/tool-tray regions
-3. Asset Browser Quick Access / Favorites / Recent / tags / saved searches / grid thumbnails
-4. Inspector sections, history, pinned instances, mixed-value multi-selection
-5. universal SelectionService linking renderer, Outliner, Inspector and Asset Browser
-6. Outliner/Layers hierarchy and drag-reparent
-7. precise 2D world/screen math and 3D ray construction/picking
-8. transform gizmo manipulation transactions
-9. workspace layout persistence/import/export and monitor/DPI-safe restore
-10. multi-render-surface and detached native workspaces
-11. actual PIE/runtime renderer switching through the same surface host
-12. interaction/screenshot/DPI/accessibility certification for Creator Studio
+- graph/node canvas, ports/wires, graph minimap and subgraph navigation
+- timeline/dope-sheet/curve-editor chrome and transport controls
+- transform/selection/gizmo overlays
+- asset-browser/Inspector maturity and multi-selection workflows
+- reusable console/problems/build/operation-queue/source-control surfaces
+- density/typography presets and consumer theme derivation
+- high-DPI fixtures across all built-in themes
+- keyboard-only, high-contrast and reduced-motion certification
+- layout persistence/import/export and monitor-safe recovery
+- consumer starter-shell templates and integration examples
+- public facade/feature-flag normalization and semver compatibility reporting
+
+## Parallel authoring/runtime integration tracks
+
+The visual-core work does not replace these existing engineering tracks:
+
+- GPU-backed render-surface presentation for consumer renderers
+- real structural docking where a product requires it
+- universal SelectionService across canvas/outliner/Inspector/browser
+- hierarchy/outliner drag-reparent and canvas drag/drop placement
+- precise 2D world/screen math and 3D ray/picking
+- transform-gizmo manipulation transactions
+- multi-surface/detached workspace support
+- actual PIE/runtime renderer switching through the shared surface host
+
+## Standing rule
+
+Do not solve a workflow by permanently adding another bar or panel. Prefer contextual
+chrome, grouped controls, menus, overlays, edge reveal, collapsible hosts and workspace-
+specific opt-ins. Under layout pressure, preserve the center authoring/canvas surface first.

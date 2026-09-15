@@ -13,6 +13,7 @@ forge_gui_canvas = { path = "../forge_gui_canvas" }
 forge_gui_console = { path = "../forge_gui_console" }
 forge_gui_notify = { path = "../forge_gui_notify" }
 forge_gui_pie = { path = "../forge_gui_pie" }
+forge_gui_rails = { path = "../forge_gui_rails" }
 forge_gui_egui = { path = "../forge_gui_egui" }
 forge_gui_theme = { path = "../forge_gui_theme" }
 forge_gui_panels = { path = "../forge_gui_panels" }
@@ -20,3 +21,6 @@ forge_gui_chrome = { path = "../forge_gui_chrome" }
 forge_gui_layout = { path = "../forge_gui_layout" }
 forge_gui_workspace = { path = "../forge_gui_workspace" }
 forge_render_surface = { path = "../forge_render_surface" }
+forge_gui_browser = { path = "../forge_gui_browser" }
+forge_gui_inspector = { path = "../forge_gui_inspector" }
+forge_gui_command = { path = "../forge_gui_command" }

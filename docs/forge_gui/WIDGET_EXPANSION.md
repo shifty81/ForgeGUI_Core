@@ -5,7 +5,7 @@ Priority additions after the current rail/workbench foundation:
 1. Command palette / omnibox across commands, panels, assets, files, and settings.
 2. Quick switcher for open documents and recent assets.
 3. Dock compass with live drop-target preview.
-4. Panel hover actions: pin, soft-lock, detach, maximize, overflow.
+4. Panel hover actions: pin, soft-lock, detach, focus-fill, overflow.
 5. Tab preview thumbnails with dirty/error/status indicators.
 6. Peek panel for temporary Inspector/asset detail.
 7. Property grid with mixed values, reset/revert, validation, provenance, and undo.
