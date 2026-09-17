@@ -1,0 +1,2 @@
+[dependencies]
+forge_gui = { path = "../ForgeGUI/crates/forge_gui" }

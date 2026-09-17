@@ -1,0 +1,13 @@
+target/
+artifacts/
+*.patch
+*.zip
+*.7z
+*.rar
+*.bak
+*.orig
+*.rej
+*.tmp
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,38 @@
+name: ForgeGUI_Core CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Check workspace
+        run: cargo check --locked --workspace --all-targets
+
+      - name: Test workspace
+        run: cargo test --locked --workspace --all-targets
+
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      - name: Build certification labs
+        run: cargo build --locked --release -p forge_gui_contracts_smoke -p forge_gui_micro_lab -p forge_gui_app_lab -p forge_gui_lab

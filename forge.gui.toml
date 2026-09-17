@@ -1,0 +1,65 @@
+api_version = "forge.gui.v0.4"
+
+[application]
+id = "forgegui.core.reference"
+name = "ForgeGUI_Core Reference Studio"
+version = "0.4.8"
+preset = "universal_modular"
+
+[theme]
+base = "forge_dark"
+density = "compact"
+
+[capabilities]
+documents = true
+file_browser = true
+assets = true
+inspector = true
+infinite_canvas = true
+pie = true
+graph = true
+timeline = true
+curve_editor = true
+project_operations = true
+notifications = true
+console = true
+terminal_host = false
+semantic_icons = true
+virtual_tables = true
+
+[capability_maturity]
+documents = "foundation"
+file_browser = "reference-proof"
+assets = "reference-proof"
+inspector = "reference-proof"
+infinite_canvas = "reference-proof"
+pie = "reference-proof"
+graph = "reference-proof"
+timeline = "reference-proof"
+curve_editor = "reference-proof"
+project_operations = "pcc-provider"
+notifications = "reference-proof"
+console = "reference-proof"
+terminal_host = "planned"
+semantic_icons = "adapter-certified"
+virtual_tables = "adapter-certified"
+
+[layout]
+default_perspective = "forgegui.core.application"
+persist = false
+schema_version = 1
+preferred_dock_authority = true
+
+[canvas]
+extent_policy = "user_toggle"
+infinite_default = true
+grid_default = true
+snap_default = true
+minimap_default = true
+
+[pie]
+embedded = true
+play_from_here = true
+pause = true
+step = true
+input_capture = true

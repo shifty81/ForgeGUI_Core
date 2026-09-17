@@ -1,0 +1,13 @@
+[package]
+name = "forge_engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+forge_scene_core = { path = "../forge_scene_core" }
+forge_render_core = { path = "../forge_render_core" }
+forge_authoring_core = { path = "../forge_authoring_core" }
+forge_runtime_core = { path = "../forge_runtime_core" }
+forge_runtime_bridge = { path = "../forge_runtime_bridge" }

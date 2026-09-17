@@ -1,0 +1,16 @@
+[package]
+name = "forge_gui_workspace"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+egui.workspace = true
+forge_gui_core = { path = "../forge_gui_core" }
+forge_gui_theme = { path = "../forge_gui_theme" }
+forge_gui_widgets = { path = "../forge_gui_widgets" }
+forge_gui_icons = { path = "../forge_gui_icons" }
+forge_render_core = { path = "../forge_render_core" }
+forge_render_surface = { path = "../forge_render_surface" }
+serde.workspace = true

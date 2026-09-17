@@ -1,0 +1,25 @@
+{
+  "schema": "forgegui_core.clean_source.v2",
+  "project": "ForgeGUI_Core",
+  "version": "0.4.8",
+  "pcc_provider": "0.4.13",
+  "date": "2026-09-16",
+  "source": "reconstructed from user-supplied crates.zip clean Git worktree plus latest live-tree M1-M6/PCC delta",
+  "base_git_commit": "532f7e1a0dfe4d7eefc46680a1567242059640a7",
+  "base_green_gate": "QG-20260915-183828-full-c5c3f4b8",
+  "base_green_source_fingerprint": "5d6c9f6af46d4d9021ccbfb3e8124826d2043ba2ff73ae49fbdae5e75bbebd51",
+  "foundation": "FG-C01..FG-C82 plus M1-M6 universal modular shell normalization",
+  "clean_reset": true,
+  "removed": [
+    "target/",
+    ".git/",
+    "artifacts/",
+    "debug bundles and logs",
+    "patch transaction backups",
+    "pending/rebase-needed/root patch transports"
+  ],
+  "canonical_repository": "https://github.com/shifty81/ForgeGUI_Core.git",
+  "rust_compile_in_artifact_environment": false,
+  "certification_status": "NEEDS_FULL_GATE_AFTER_RECONSTRUCTION",
+  "certification_authority": "PROJECT_CONTROL_CENTER.cmd -> Full Gate"
+}

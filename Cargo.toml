@@ -1,0 +1,69 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/forge_gui_core",
+    "crates/forge_gui_icons",
+    "crates/forge_gui_widgets",
+    "crates/forge_gui_canvas",
+    "crates/forge_gui_console",
+    "crates/forge_gui_notify",
+    "crates/forge_gui_pie",
+    "crates/forge_gui_egui",
+    "crates/forge_gui",
+    "crates/forge_gui_sdk",
+    "crates/forge_gui_testkit",
+    "crates/forge_gui_oss_lab",
+    "crates/forge_gui_theme",
+    "crates/forge_gui_rails",
+    "crates/forge_gui_workbench",
+    "crates/forge_gui_browser",
+    "crates/forge_gui_inspector",
+    "crates/forge_gui_command",
+    "crates/forge_gui_document_map",
+    "crates/forge_gui_panels",
+    "crates/forge_gui_chrome",
+    "crates/forge_gui_layout",
+    "crates/forge_gui_workspace",
+    "crates/forge_gui_app",
+    "crates/forge_gui_services",
+    "crates/forge_gui_state",
+    "crates/forge_gui_forms",
+    "crates/forge_gui_data",
+    "crates/forge_gui_settings",
+    "crates/forge_gui_platform",
+    "crates/forge_gui_i18n",
+    "crates/forge_gui_accessibility",
+    "crates/forge_gui_extension",
+    "crates/forge_gui_dialog",
+    "crates/forge_gui_overlay",
+    "crates/forge_gui_persistence",
+    "crates/forge_gui_search",
+    "crates/forge_gui_log",
+    "crates/forge_gui_universal",
+    "crates/forge_gui_universal_egui",
+    "crates/forge_render_surface",
+    "crates/forge_scene_core",
+    "crates/forge_render_core",
+    "crates/forge_authoring_core",
+    "crates/forge_authoring_egui",
+    "crates/forge_runtime_core",
+    "crates/forge_runtime_bridge",
+    "crates/forge_engine",
+    "examples/forge_gui_lab",
+    "examples/forge_gui_contracts_smoke",
+    "examples/forge_gui_micro_lab",
+    "examples/forge_gui_app_lab",
+]
+
+[workspace.package]
+version = "0.4.8"
+edition = "2021"
+rust-version = "1.95"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+egui = "=0.36.2"
+egui_dock = { version = "=0.21.1", features = ["serde"] }
+egui_extras = "=0.36.2"
+egui-phosphor = "=0.14.0"

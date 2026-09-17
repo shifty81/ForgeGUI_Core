@@ -1,0 +1,19 @@
+[package]
+name = "forge_gui_universal_egui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+egui.workspace = true
+forge_gui_app = { path = "../forge_gui_app" }
+forge_gui_core = { path = "../forge_gui_core" }
+forge_gui_data = { path = "../forge_gui_data" }
+forge_gui_dialog = { path = "../forge_gui_dialog" }
+forge_gui_forms = { path = "../forge_gui_forms" }
+forge_gui_notify = { path = "../forge_gui_notify" }
+forge_gui_services = { path = "../forge_gui_services" }
+forge_gui_settings = { path = "../forge_gui_settings" }
+forge_gui_theme = { path = "../forge_gui_theme" }
+forge_gui_widgets = { path = "../forge_gui_widgets" }

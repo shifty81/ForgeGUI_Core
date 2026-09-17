@@ -1,0 +1,3 @@
+package forge:gui@0.4.8;
+
+interface extension { version: func() -> string; }

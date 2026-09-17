@@ -1,0 +1,12 @@
+[package]
+name = "forge_gui_micro_lab"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+eframe = { version = "=0.36.2", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland", "x11"] }
+forge_gui_theme = { path = "../../crates/forge_gui_theme" }
+forge_gui_chrome = { path = "../../crates/forge_gui_chrome" }
+forge_gui_universal_egui = { path = "../../crates/forge_gui_universal_egui" }
