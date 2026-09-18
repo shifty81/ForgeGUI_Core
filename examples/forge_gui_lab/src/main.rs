@@ -4,10 +4,11 @@ use eframe::egui;
 use forge_gui_browser::{show_browser, BrowserItem, BrowserItemKind, BrowserModel};
 use forge_gui_chrome::{
     apply_creator_visuals, modular_surface_frame, paint_edge_reveal_indicator, pointer_near_edge,
-    restore_surface_layout, show_chrome_bar, show_modular_surface_tabs, show_project_title_bar,
-    show_status_items, show_tool_tray_tabs, show_viewport_resize_handles, show_workspace_tabs,
-    update_window_snap, ChromeBarKind, ChromeEdge, ModularSurfaceState, ModularToolbarState,
-    ShellProfile, StatusItem, SurfaceDock, ToolTrayTab, ToolbarDock, WindowSnapState, WorkspaceTab,
+    restore_surface_layout, show_chrome_bar, show_draggable_surface_tabs, show_native_surface,
+    show_project_title_bar, show_status_items, show_tool_tray_tabs, show_viewport_resize_handles,
+    show_workspace_tabs, update_window_snap, ChromeBarKind, ChromeEdge, ModularSurfaceState,
+    ModularToolbarState, NativeSurfaceLifecycle, ShellProfile, StatusItem, SurfaceDock,
+    ToolTrayTab, ToolbarDock, WindowSnapState, WorkspaceTab,
 };
 use forge_gui_command::{show_command_palette, CommandPalette, PaletteEntry};
 use forge_gui_core::{PropertyField, PropertyObject, PropertyValue};
@@ -32,6 +33,8 @@ use forge_gui_workspace::{
 use forge_render_core::{AuthoringCamera, NullRenderBackend, RenderRequest};
 use forge_render_surface::{RenderFamily, RenderSurfaceDescriptor, RenderSurfaceHost};
 use forge_scene_core::{ForgeScene, SceneEntity};
+
+const SURFACE_STORAGE_KEY: &str = "forgegui.core.modular_surfaces.v1";
 
 fn main() -> eframe::Result {
     let native_options = eframe::NativeOptions {
@@ -62,6 +65,7 @@ struct CreatorStudioLab {
     show_menu_bar: bool,
     show_modular_surfaces: bool,
     modular_surfaces: Vec<ModularSurfaceState>,
+    native_surface_lifecycle: NativeSurfaceLifecycle,
     toolbar_state: ModularToolbarState,
     window_snap: WindowSnapState,
     surface_drag: Option<String>,
@@ -103,7 +107,15 @@ impl CreatorStudioLab {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let theme_preset = ForgeThemePreset::MidnightMint;
         let theme = ForgeTheme::from_preset(theme_preset);
-        apply_creator_visuals(&cc.egui_ctx, &theme);
+        apply_creator_visuals(&cc.egui_ctx, &theme); // Includes the Phosphor font.
+        let surfaces = restored_surfaces(
+            modular_surfaces(),
+            cc.storage
+                .and_then(|storage| {
+                    eframe::get_value::<Vec<ModularSurfaceState>>(storage, SURFACE_STORAGE_KEY)
+                })
+                .unwrap_or_default(),
+        );
 
         let mut scene = ForgeScene::new("creator.lab.scene", "Creator Studio Demo");
         scene
@@ -131,7 +143,8 @@ impl CreatorStudioLab {
             shell_profile: ShellProfile::Standard,
             show_menu_bar: true,
             show_modular_surfaces: true,
-            modular_surfaces: modular_surfaces(),
+            modular_surfaces: surfaces,
+            native_surface_lifecycle: NativeSurfaceLifecycle::default(),
             toolbar_state: ModularToolbarState::default(),
             window_snap: WindowSnapState::default(),
             surface_drag: None,
@@ -472,6 +485,7 @@ impl CreatorStudioLab {
         let mut toggle_lock = false;
         let mut hide_active = false;
         let mut drag_started = false;
+        let mut tab_drag_started: Option<String> = None;
 
         modular_surface_frame(&theme).show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -490,13 +504,25 @@ impl CreatorStudioLab {
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
-                    if panel_chrome_button(ui, "×", "Hide surface", false, true, &theme).clicked()
+                    if panel_chrome_button(
+                        ui,
+                        icon_text(IconId::Close),
+                        "Hide surface",
+                        false,
+                        true,
+                        &theme,
+                    )
+                    .clicked()
                     {
                         hide_active = true;
                     }
                     if panel_chrome_button(
                         ui,
-                        if locked { "▣" } else { "◇" },
+                        if locked {
+                            icon_text(IconId::PanelDock)
+                        } else {
+                            icon_text(IconId::PanelDetach)
+                        },
                         if locked {
                             "Unlock surface"
                         } else {
@@ -524,15 +550,19 @@ impl CreatorStudioLab {
                 });
             });
             ui.add_space(3.0);
-            selected = show_modular_surface_tabs(ui, &surfaces, &active, &theme);
+            let tabs = show_draggable_surface_tabs(ui, &surfaces, &active, &theme);
+            selected = tabs.selected;
+            tab_drag_started = tabs.drag_started;
             ui.separator();
             self.show_surface_content(ui, &active);
         });
 
-        if drag_started {
-            self.surface_drag = Some(active.clone());
+        if drag_started || tab_drag_started.is_some() {
+            let dragged = tab_drag_started.unwrap_or_else(|| active.clone());
+            self.set_active_surface(dock, dragged.clone());
+            self.surface_drag = Some(dragged.clone());
             self.surface_drag_preview = Some(dock);
-            self.last_action = format!("Dragging surface: {title}");
+            self.last_action = format!("Dragging surface: {dragged}");
         }
 
         if let Some(selected) = selected {
@@ -564,7 +594,7 @@ impl CreatorStudioLab {
                     .iter_mut()
                     .find(|surface| surface.id == active)
                 {
-                    surface.dock = destination;
+                    let _ = surface.move_to(destination);
                 }
                 self.set_active_surface(destination, active.clone());
                 self.last_action = format!("Docked {active} → {}", destination.label());
@@ -579,68 +609,108 @@ impl CreatorStudioLab {
             .filter(|surface| surface.visible && surface.dock == SurfaceDock::Floating)
             .cloned()
             .collect();
+        self.native_surface_lifecycle.retain_visible(&floating);
 
         for surface in floating {
-            let mut open = true;
-            let mut locked = surface.locked;
+            let opening_size = self
+                .native_surface_lifecycle
+                .opening_size(&surface.id, surface.preferred_size);
             let mut requested_dock = None;
-            let frame = modular_surface_frame(&self.theme);
-            egui::Window::new(&surface.title)
-                .id(egui::Id::new(("forge.modular.surface", &surface.id)))
-                .open(&mut open)
-                .movable(!surface.locked)
-                .resizable(!surface.locked)
-                .collapsible(false)
-                .default_size(egui::vec2(
-                    surface.preferred_size[0],
-                    surface.preferred_size[1],
-                ))
-                .frame(frame)
-                .show(ctx, |ui| {
+            let mut hide_requested = false;
+            let mut locked = surface.locked;
+            let theme = self.theme.clone();
+            // Native OS window: independent minimize/maximize, taskbar presence,
+            // monitor movement and resizing are handled by the window backend.
+            let native_response = show_native_surface(
+                ctx,
+                &surface.id,
+                &surface.title,
+                opening_size,
+                &theme,
+                |ui| {
                     ui.horizontal(|ui| {
                         if panel_chrome_button(
                             ui,
-                            if locked { "▣" } else { "◇" },
+                            if locked {
+                                icon_text(IconId::PanelDock)
+                            } else {
+                                icon_text(IconId::PanelDetach)
+                            },
                             if locked {
                                 "Unlock surface"
                             } else {
-                                "Lock surface in place"
+                                "Lock surface"
                             },
                             locked,
                             false,
-                            &self.theme,
+                            &theme,
                         )
                         .clicked()
                         {
                             locked = !locked;
                         }
-                        ui.menu_button("Dock ▾", |ui| {
-                            for dock in SurfaceDock::ALL {
-                                if dock != SurfaceDock::Floating
-                                    && ui.button(dock.label()).clicked()
-                                {
-                                    requested_dock = Some(dock);
-                                    ui.close();
-                                }
-                            }
+                        ui.add_enabled_ui(!locked, |ui| {
+                            ui.menu_button(
+                                format!("{} Dock", icon_text(IconId::PanelDock)),
+                                |ui| {
+                                    for dock in SurfaceDock::ALL {
+                                        if dock != SurfaceDock::Floating
+                                            && ui.button(dock.label()).clicked()
+                                        {
+                                            requested_dock = Some(dock);
+                                            ui.close();
+                                        }
+                                    }
+                                },
+                            );
                         });
+                        if ui
+                            .button(format!("{} Hide", icon_text(IconId::Close)))
+                            .clicked()
+                        {
+                            hide_requested = true;
+                        }
                     });
                     ui.separator();
                     self.show_surface_content(ui, &surface.id);
-                });
+                },
+            );
             if let Some(current) = self
                 .modular_surfaces
                 .iter_mut()
-                .find(|current| current.id == surface.id)
+                .find(|item| item.id == surface.id)
             {
-                current.visible = open;
                 current.locked = locked;
-                if let Some(dock) = requested_dock {
-                    current.dock = dock;
+                // Size is observed only; it must never be fed back to an open
+                // viewport's builder. Keep the last restored size when maximized.
+                if !native_response.maximized {
+                    if let Some(size) = native_response.inner_size {
+                        if size[0].is_finite()
+                            && size[1].is_finite()
+                            && size[0] >= 260.0
+                            && size[1] >= 180.0
+                        {
+                            current.preferred_size =
+                                [size[0].clamp(260.0, 4096.0), size[1].clamp(180.0, 4096.0)];
+                        }
+                    }
+                }
+                if hide_requested {
+                    current.visible = false;
+                } else if let Some(dock) = requested_dock {
+                    let _ = current.move_to(dock);
+                } else if native_response.close_requested {
+                    // The window close control is not a document-close request.
+                    // Return the unchanged panel to its original dock.
+                    current.locked = false;
+                    let _ = current.redock();
+                    current.locked = locked;
+                    requested_dock = Some(current.dock);
                 }
             }
             if let Some(dock) = requested_dock {
                 self.set_active_surface(dock, surface.id.clone());
+                self.last_action = format!("Redocked {} → {}", surface.title, dock.label());
             }
         }
     }
@@ -839,7 +909,7 @@ impl CreatorStudioLab {
                 .find(|surface| surface.id == surface_id)
             {
                 surface.visible = true;
-                surface.dock = destination;
+                let _ = surface.move_to(destination);
             }
             self.set_active_surface(destination, surface_id.clone());
             self.last_action = format!("Docked {surface_id} → {}", destination.label());
@@ -964,7 +1034,7 @@ impl CreatorStudioLab {
                         .find(|surface| surface.id == "surface.widgets")
                     {
                         surface.visible = true;
-                        surface.dock = SurfaceDock::Floating;
+                        let _ = surface.move_to(SurfaceDock::Floating);
                     }
                 }
             });
@@ -972,8 +1042,8 @@ impl CreatorStudioLab {
             ui.separator();
             ui.add_space(8.0);
             ui.strong("Modular GUI certification");
-            ui.label("Drag the ⠿ grip in any active surface title to re-dock it left, center, right, or bottom. Drag outside the application to detach it as a floating window.");
-            ui.label("Surfaces sharing the same dock become a tab stack. Every surface can be hidden, floated, re-docked, resized, or locked in place.");
+            ui.label("Drag the ⠿ grip in any active surface title to re-dock it left, center, right, or bottom. Drag outside the application to detach it into a native OS window.");
+            ui.label("Surfaces sharing the same dock become a tab stack. Every surface can be hidden, detached, re-docked, resized, or locked. Closing a detached window restores its dock.");
             ui.label("The toolbar has its own ⠿ grip and may dock on any edge, float, lock, or disappear. Shell profiles can strip chrome for content-first applications.");
             ui.add_space(8.0);
             let _ = progress_bar(
@@ -1099,6 +1169,8 @@ impl CreatorStudioLab {
 
         if self.show_modular_surfaces {
             self.show_floating_surfaces(ctx);
+        } else {
+            self.native_surface_lifecycle.clear();
         }
 
         self.update_surface_drag_drop(root, ctx, shell_rect);
@@ -1140,7 +1212,7 @@ impl CreatorStudioLab {
                             .selectable_label(surface.dock == dock, dock.label())
                             .clicked()
                         {
-                            surface.dock = dock;
+                            let _ = surface.move_to(dock);
                         }
                     }
                 });
@@ -1374,6 +1446,10 @@ impl CreatorStudioLab {
 }
 
 impl eframe::App for CreatorStudioLab {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, SURFACE_STORAGE_KEY, &self.modular_surfaces);
+    }
+
     fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
         let metrics = self.theme.effective_metrics();
@@ -1709,6 +1785,7 @@ impl eframe::App for CreatorStudioLab {
             show_viewport_resize_handles(root, 5.0);
             return;
         }
+        self.native_surface_lifecycle.clear();
 
         if self.layout.structural.bottom_visible {
             egui::Panel::bottom("forge.creator.bottom_tray")
@@ -2071,6 +2148,34 @@ fn universal_tool_rail() -> RailModel {
     rail
 }
 
+/// Restore user placement without clobbering new registered surfaces or duplicating old IDs.
+/// A persisted window may have moved off-screen; native viewport positioning stays
+/// the host's responsibility. This restores logical dock, size and visibility only.
+fn restored_surfaces(
+    mut defaults: Vec<ModularSurfaceState>,
+    saved: Vec<ModularSurfaceState>,
+) -> Vec<ModularSurfaceState> {
+    for mut old in saved {
+        if old.id.is_empty() {
+            continue;
+        }
+        if !old.preferred_size.iter().all(|value| value.is_finite()) {
+            old.preferred_size = [320.0, 320.0];
+        }
+        old.preferred_size[0] = old.preferred_size[0].clamp(260.0, 4096.0);
+        old.preferred_size[1] = old.preferred_size[1].clamp(180.0, 4096.0);
+        if let Some(existing) = defaults.iter_mut().find(|surface| surface.id == old.id) {
+            // Retain up-to-date titles and registrations from the active project.
+            existing.dock = old.dock;
+            existing.last_dock = old.last_dock;
+            existing.visible = old.visible;
+            existing.locked = old.locked;
+            existing.preferred_size = old.preferred_size;
+        }
+    }
+    defaults
+}
+
 fn modular_surfaces() -> Vec<ModularSurfaceState> {
     let mut home = ModularSurfaceState::new("surface.home", "Application", SurfaceDock::Center);
     home.preferred_size = [760.0, 560.0];
@@ -2251,4 +2356,44 @@ fn command_palette() -> CommandPalette {
 
 fn color(value: forge_gui_core::Rgba) -> egui::Color32 {
     egui::Color32::from_rgba_unmultiplied(value.0, value.1, value.2, value.3)
+}
+
+#[cfg(test)]
+mod surface_persistence_tests {
+    use super::*;
+
+    #[test]
+    fn saved_floating_panel_survives_and_keeps_registered_title() {
+        let defaults = modular_surfaces();
+        let mut old = defaults
+            .iter()
+            .find(|s| s.id == "surface.content")
+            .unwrap()
+            .clone();
+        old.title = "Stale title".into();
+        old.dock = SurfaceDock::Floating;
+        old.last_dock = SurfaceDock::Left;
+        old.preferred_size = [505.0, 330.0];
+        let restored = restored_surfaces(defaults, vec![old]);
+        let content = restored.iter().find(|s| s.id == "surface.content").unwrap();
+        assert_eq!(content.title, "Content");
+        assert_eq!(content.dock, SurfaceDock::Floating);
+        assert_eq!(content.last_dock, SurfaceDock::Left);
+        assert_eq!(content.preferred_size, [505.0, 330.0]);
+    }
+
+    #[test]
+    fn malformed_sizes_and_unknown_or_duplicate_panels_cannot_corrupt_catalog() {
+        let defaults = modular_surfaces();
+        let n = defaults.len();
+        let mut malformed = defaults[0].clone();
+        malformed.preferred_size = [f32::NAN, f32::INFINITY];
+        let unknown = ModularSurfaceState::new("old.deleted.panel", "Removed", SurfaceDock::Left);
+        let restored = restored_surfaces(defaults, vec![unknown, malformed]);
+        assert_eq!(restored.len(), n);
+        assert_eq!(restored[0].preferred_size, [320.0, 320.0]);
+        assert!(restored
+            .iter()
+            .all(|surface| surface.preferred_size.iter().all(|v| v.is_finite())));
+    }
 }

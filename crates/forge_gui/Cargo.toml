@@ -24,3 +24,4 @@ forge_render_surface = { path = "../forge_render_surface" }
 forge_gui_browser = { path = "../forge_gui_browser" }
 forge_gui_inspector = { path = "../forge_gui_inspector" }
 forge_gui_command = { path = "../forge_gui_command" }
+forge_gui_shell = { path = "../forge_gui_shell" }

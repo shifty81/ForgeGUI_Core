@@ -129,3 +129,25 @@ See:
 The canonical Lab now defaults to a generic application workspace rather than an editor canvas. Surface title grips can be dragged between left, center, right, and bottom dock zones; matching zones form tab stacks. Surfaces can be floated, hidden, resized, or locked. The toolbar is independently dockable/floating/lockable. Canvas/viewport tooling remains an optional certification workspace rather than the framework's default identity.
 
 The internal PCC uses source-authoritative `cargo run` for the Lab, displays the detected Lab generation on its main menu, returns completed interactive operations to that menu, and does not require manual restarts for ordinary source patches.
+
+## Public drop-in application shell
+
+ForgeGUI Lab is only the visual showcase. Consumer applications should build on the public
+`forge_gui_shell` runtime instead of copying Lab code.
+
+The minimal Rust/egui integration is:
+
+```rust
+let mut shell = ForgeShellState::new(
+    ShellProfile::Standard,
+    vec![ModularSurfaceState::new("home", "Home", SurfaceDock::Center)],
+);
+show_application_shell(root, &ctx, &spec, &mut shell, &theme, &mut content);
+```
+
+`ForgeShellContent` supplies application-owned menu, toolbar, status and surface contents.
+ForgeGUI owns the shared application frame, dock zones, tab stacks, floating windows, locking,
+visibility, resizable dock groups and JSON layout persistence.
+
+Run `cargo run -p forge_gui_consumer_starter` for the independent consumer certification app.
+It intentionally contains no copied ForgeGUI Lab shell implementation.

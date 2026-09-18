@@ -3,7 +3,8 @@
 pub use forge_gui::*;
 pub mod prelude {
     pub use forge_gui::{
-        CommandId, EguiPanel, ForgeGuiRuntime, GuiEvent, IconId, PanelDefinition, PanelId,
+        show_application_shell, CommandId, EguiPanel, ForgeApplicationSpec, ForgeGuiRuntime,
+        ForgeShellContent, ForgeShellState, GuiEvent, IconId, PanelDefinition, PanelId,
         PanelInstanceId, PanelRole, PanelScope, PanelUiContext, PreferredDock, ThemeTokens,
     };
 }

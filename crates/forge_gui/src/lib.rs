@@ -22,6 +22,8 @@ pub use forge_gui_panels as panels;
 pub use forge_gui_pie as pie;
 pub use forge_gui_pie::*;
 pub use forge_gui_rails as rails;
+pub use forge_gui_shell as shell;
+pub use forge_gui_shell::*;
 pub use forge_gui_theme as theme;
 pub use forge_gui_widgets as widgets;
 pub use forge_gui_workspace as workspace;

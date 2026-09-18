@@ -25,6 +25,7 @@ members = [
     "crates/forge_gui_layout",
     "crates/forge_gui_workspace",
     "crates/forge_gui_app",
+    "crates/forge_gui_shell",
     "crates/forge_gui_services",
     "crates/forge_gui_state",
     "crates/forge_gui_forms",
@@ -53,6 +54,7 @@ members = [
     "examples/forge_gui_contracts_smoke",
     "examples/forge_gui_micro_lab",
     "examples/forge_gui_app_lab",
+    "examples/forge_gui_consumer_starter",
 ]
 
 [workspace.package]

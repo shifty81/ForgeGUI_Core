@@ -80,3 +80,21 @@
 
 | PCC menu continuity | Candidate M1-M6+ | All interactive actions return to main menu; normal patch apply stays in-process; provider changes self-reload |
 | Drag docking certification | Candidate M1-M6+ | Active surface and toolbar grips provide live dock previews and drag re-docking in the canonical Lab |
+
+## M8 universal consumer runtime
+
+| Capability | Public framework status | Certification |
+|---|---|---|
+| Reusable application shell | Implemented in `forge_gui_shell` | `forge_gui_consumer_starter` |
+| Surface registration | Implemented | unit tests + starter |
+| Left/center/right/bottom docking | Implemented | starter |
+| Floating surfaces | Implemented | starter |
+| Surface tab stacks | Implemented | starter |
+| Surface lock/hide/show | Implemented | unit tests + starter |
+| Surface drag/drop dock preview | Implemented | starter visual acceptance |
+| Toolbar placement/locking | Implemented | starter visual acceptance |
+| JSON shell layout persistence | Implemented | unit test |
+| ForgeGUI Lab | Showcase only | not framework authority |
+
+## FG-C71R source-aware correction (requires local Full Gate)
+Shared `forge_gui_egui` docking is unified; the newer native-window GUI Lab is preserved and persists modular surface placement through eframe storage. The Lab currently has a separate `ModularSurfaceState` layout authority; merging both systems under one authoritative docking interface is still required before claiming universal docking completion. Semantic browser and panel icons are improved. CI and icon-font initialization already existed in this source and are not overwritten.

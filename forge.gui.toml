@@ -46,7 +46,7 @@ virtual_tables = "adapter-certified"
 
 [layout]
 default_perspective = "forgegui.core.application"
-persist = false
+persist = true
 schema_version = 1
 preferred_dock_authority = true
 

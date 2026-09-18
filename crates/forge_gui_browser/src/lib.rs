@@ -3,6 +3,7 @@
 
 use egui::{Button, Frame, Margin, RichText, ScrollArea, Stroke, Ui};
 use forge_gui_theme::ForgeTheme;
+use forge_gui_widgets::{icon_text, IconId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -188,7 +189,7 @@ pub fn show_browser(ui: &mut Ui, model: &mut BrowserModel, theme: &ForgeTheme) -
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.add_space(depth as f32 * 12.0);
-                            let icon = kind_icon(item.kind);
+                            let icon = icon_text(kind_icon(item.kind));
                             ui.label(RichText::new(icon).size(12.0).color(color(
                                 if matches!(item.kind, BrowserItemKind::Folder) {
                                     theme.base.warning
@@ -245,18 +246,18 @@ pub fn show_browser(ui: &mut Ui, model: &mut BrowserModel, theme: &ForgeTheme) -
     response
 }
 
-fn kind_icon(kind: BrowserItemKind) -> &'static str {
+fn kind_icon(kind: BrowserItemKind) -> IconId {
     match kind {
-        BrowserItemKind::Folder => "▾",
-        BrowserItemKind::Scene => "▦",
-        BrowserItemKind::Object => "◇",
-        BrowserItemKind::Sprite => "▧",
-        BrowserItemKind::Tileset => "▤",
-        BrowserItemKind::Audio => "♪",
-        BrowserItemKind::Script => "{ }",
-        BrowserItemKind::Shader => "△",
-        BrowserItemKind::Data => "◫",
-        BrowserItemKind::Other => "·",
+        BrowserItemKind::Folder => IconId::Folder,
+        BrowserItemKind::Scene => IconId::Scene,
+        BrowserItemKind::Object => IconId::Entity,
+        BrowserItemKind::Sprite => IconId::Asset,
+        BrowserItemKind::Tileset => IconId::Layers,
+        BrowserItemKind::Audio => IconId::Play,
+        BrowserItemKind::Script => IconId::File,
+        BrowserItemKind::Shader => IconId::Graph,
+        BrowserItemKind::Data => IconId::Inventory,
+        BrowserItemKind::Other => IconId::File,
     }
 }
 

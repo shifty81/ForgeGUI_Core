@@ -7,7 +7,7 @@
 
 use egui::{Button, Frame, Id, Margin, Response, RichText, Stroke, Ui, Vec2};
 use egui_extras::{Column, TableBuilder};
-use forge_gui_icons::IconId;
+pub use forge_gui_icons::IconId;
 use forge_gui_theme::ForgeTheme;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -30,30 +30,46 @@ pub fn icon_text(icon: IconId) -> &'static str {
         IconId::Add => p::PLUS,
         IconId::Remove => p::MINUS,
         IconId::Close => p::X,
+        IconId::WindowMinimize => p::MINUS,
+        IconId::WindowMaximize => p::CORNERS_OUT,
+        IconId::WindowRestore => p::CORNERS_IN,
+        IconId::PanelDetach => p::ARROW_SQUARE_OUT,
+        IconId::PanelDock => p::ARROW_SQUARE_IN,
         IconId::Save => p::FLOPPY_DISK,
         IconId::Undo => p::ARROW_COUNTER_CLOCKWISE,
         IconId::Redo | IconId::Restart => p::ARROW_CLOCKWISE,
         IconId::Search => p::MAGNIFYING_GLASS,
-        IconId::Settings | IconId::Build | IconId::Crafting => p::GEAR,
+        IconId::Settings => p::GEAR,
+        IconId::Build => p::HAMMER,
+        IconId::Crafting => p::WRENCH,
         IconId::Folder | IconId::Project => p::FOLDER,
         IconId::FolderOpen => p::FOLDER_OPEN,
         IconId::File => p::FILE,
         IconId::Asset | IconId::Package | IconId::Inventory => p::PACKAGE,
         IconId::Inspector => p::SLIDERS_HORIZONTAL,
         IconId::Layers => p::STACK,
-        IconId::Console | IconId::Terminal | IconId::Cortex => p::TERMINAL,
+        IconId::Console | IconId::Terminal => p::TERMINAL,
+        IconId::Cortex => p::BRAIN,
         IconId::Play | IconId::Step => p::PLAY,
         IconId::Pause => p::PAUSE,
         IconId::Stop => p::STOP,
         IconId::Patch => p::GIT_DIFF,
         IconId::GitBranch => p::GIT_BRANCH,
-        IconId::Success | IconId::Test => p::CHECK,
-        IconId::Warning | IconId::Problems | IconId::Notifications | IconId::Info => p::INFO,
-        IconId::Error => p::X,
+        IconId::Success => p::CHECK_CIRCLE,
+        IconId::Test => p::CHECK,
+        IconId::Warning => p::WARNING,
+        IconId::Problems => p::WARNING_CIRCLE,
+        IconId::Notifications => p::BELL,
+        IconId::Info => p::INFO,
+        IconId::Error => p::X_CIRCLE,
         IconId::World => p::GLOBE,
-        IconId::Scene | IconId::Entity | IconId::Ship | IconId::Module | IconId::Socket => p::CUBE,
+        IconId::Scene | IconId::Module => p::CUBE,
+        IconId::Entity => p::PERSON,
+        IconId::Ship => p::ROCKET,
+        IconId::Socket => p::PLUG,
         IconId::Graph => p::GRAPH,
-        IconId::Timeline | IconId::History => p::STACK,
+        IconId::Timeline => p::CLOCK,
+        IconId::History => p::CLOCK_COUNTER_CLOCKWISE,
         _ => icon.fallback(),
     }
 }

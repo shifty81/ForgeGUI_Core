@@ -102,3 +102,24 @@ canvas receives priority only when the active consumer profile explicitly reques
 - Source-authoritative Lab launch and visible generation marker.
 - Drag grips and dock previews for modular surfaces/toolbars.
 - Next: persistence of user-created surface/tab layouts, multi-window detached workspace persistence, and keyboard docking commands.
+
+## M8 — Public modular application runtime
+
+- `forge_gui_shell` is the high-level drop-in application host for Rust/egui consumers.
+- Applications register independent surfaces and provide only application-owned content.
+- ForgeGUI owns shared chrome, dock groups, tab stacks, floating hosts, locks, toolbar placement,
+  surface drag/drop and persisted shell layouts.
+- `forge_gui_consumer_starter` is the independent acceptance executable. It must stay free of
+  copied Lab shell logic.
+- ForgeGUI Lab remains a visual catalog/showcase only. New framework capability is not considered
+  universal until the independent consumer starter can use it through public APIs.
+
+Next: migrate the Lab's remaining private shell rendering helpers onto `forge_gui_shell`, then add
+starter packaging/onboarding so a repository can copy or depend on the framework with one bounded
+setup step.
+
+
+### FG-C71R rebased correction / gate pending
+Preserve the newer native-window Lab; port the shared `ForgeGuiRuntime` to one egui_dock tree, improve semantic icon coverage and persist current Lab modular-surface positions. Follow-on: bridge the Lab modular surface authority to the shared dock tree (rather than replacing its existing native viewport support), then certify full Windows drag/snap/DPI and compile/test results.
+
+FG-C71R does not modify Cargo/PCC: the current project already builds the single canonical `forge_gui_lab` through its PCC.

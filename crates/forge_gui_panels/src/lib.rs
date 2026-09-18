@@ -86,7 +86,7 @@ fn show_panel_header(
             ui.set_min_height((metrics.panel_header_height - 6.0).max(18.0));
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new(kind_glyph(kind))
+                    RichText::new(forge_gui_widgets::icon_text(kind_icon(kind)))
                         .size(11.5)
                         .color(color(theme.base.accent)),
                 );
@@ -181,14 +181,14 @@ pub fn show_section_header(
     clicked
 }
 
-fn kind_glyph(kind: PanelKind) -> &'static str {
+fn kind_icon(kind: PanelKind) -> IconId {
     match kind {
-        PanelKind::Tool => "◆",
-        PanelKind::Inspector => "≡",
-        PanelKind::Assets => "▦",
-        PanelKind::Outliner => "☷",
-        PanelKind::Output => "▤",
-        PanelKind::Utility => "◇",
+        PanelKind::Tool => IconId::Settings,
+        PanelKind::Inspector => IconId::Inspector,
+        PanelKind::Assets => IconId::Asset,
+        PanelKind::Outliner => IconId::Layers,
+        PanelKind::Output => IconId::Console,
+        PanelKind::Utility => IconId::Settings,
     }
 }
 

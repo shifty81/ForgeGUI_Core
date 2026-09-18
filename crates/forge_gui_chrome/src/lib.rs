@@ -9,6 +9,7 @@ use egui::{
 use forge_gui_icons::IconId;
 use forge_gui_theme::ForgeTheme;
 use forge_gui_widgets::{add_default_icon_font, chrome_tab, panel_tab, tool_button, WidgetTone};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChromeBarKind {
@@ -44,7 +45,7 @@ pub struct WindowChromeResponse {
     pub drag_started: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ShellProfile {
     Minimal,
     ContentFirst,
@@ -114,7 +115,7 @@ impl ShellProfile {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShellPolicy {
     pub menu_bar: bool,
     pub workspace_tabs: bool,
@@ -123,7 +124,7 @@ pub struct ShellPolicy {
     pub modular_surfaces: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SurfaceDock {
     Left,
     Center,
@@ -153,11 +154,14 @@ impl SurfaceDock {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ModularSurfaceState {
     pub id: String,
     pub title: String,
     pub dock: SurfaceDock,
+    /// Remember the destination to restore after closing a detached OS window.
+    #[serde(default = "default_surface_last_dock")]
+    pub last_dock: SurfaceDock,
     pub visible: bool,
     pub locked: bool,
     pub preferred_size: [f32; 2],
@@ -169,14 +173,51 @@ impl ModularSurfaceState {
             id: id.into(),
             title: title.into(),
             dock,
+            last_dock: if dock == SurfaceDock::Floating {
+                SurfaceDock::Center
+            } else {
+                dock
+            },
             visible: true,
             locked: false,
             preferred_size: [320.0, 320.0],
         }
     }
+
+    /// Central transition for dock, detach, and redock operations. A locked surface
+    /// may not be moved, but it may still be hidden via the panel manager.
+    pub fn move_to(&mut self, destination: SurfaceDock) -> bool {
+        if self.locked {
+            return false;
+        }
+        if destination == SurfaceDock::Floating {
+            if self.dock != SurfaceDock::Floating {
+                self.last_dock = self.dock;
+            }
+        } else {
+            self.last_dock = destination;
+        }
+        self.dock = destination;
+        self.visible = true;
+        true
+    }
+
+    /// Closing a native child window returns the same panel instance home.
+    pub fn redock(&mut self) -> bool {
+        let home = if self.last_dock == SurfaceDock::Floating {
+            SurfaceDock::Center
+        } else {
+            self.last_dock
+        };
+        self.move_to(home)
+    }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+const fn default_surface_last_dock() -> SurfaceDock {
+    SurfaceDock::Center
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToolbarDock {
     #[default]
     Top,
@@ -209,7 +250,7 @@ impl ToolbarDock {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModularToolbarState {
     pub dock: ToolbarDock,
     pub visible: bool,
@@ -315,6 +356,7 @@ pub fn restore_surface_layout(
     for surface in surfaces {
         if let Some(default) = defaults.iter().find(|default| default.id == surface.id) {
             surface.dock = default.dock;
+            surface.last_dock = default.last_dock;
             surface.visible = default.visible;
             surface.locked = default.locked;
             surface.preferred_size = default.preferred_size;
@@ -562,7 +604,7 @@ pub fn show_project_title_bar(
 
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new("◆")
+                RichText::new(forge_gui_widgets::icon_text(IconId::Project))
                     .size(12.0)
                     .color(color(theme.base.accent)),
             );
@@ -593,8 +635,8 @@ pub fn show_project_title_bar(
                 let close = ui
                     .add(
                         Button::new(
-                            RichText::new("×")
-                                .size(17.0)
+                            RichText::new(forge_gui_widgets::icon_text(IconId::Close))
+                                .size(15.0)
                                 .color(color(theme.base.text_muted)),
                         )
                         .frame_when_inactive(false)
@@ -606,7 +648,11 @@ pub fn show_project_title_bar(
                     ui.send_viewport_cmd(ViewportCommand::Close);
                 }
 
-                let maximize_glyph = if maximized { "❐" } else { "□" };
+                let maximize_glyph = if maximized {
+                    forge_gui_widgets::icon_text(IconId::WindowRestore)
+                } else {
+                    forge_gui_widgets::icon_text(IconId::WindowMaximize)
+                };
                 let maximize = ui
                     .add(
                         Button::new(
@@ -626,7 +672,7 @@ pub fn show_project_title_bar(
                 let minimize = ui
                     .add(
                         Button::new(
-                            RichText::new("—")
+                            RichText::new(forge_gui_widgets::icon_text(IconId::WindowMinimize))
                                 .size(13.0)
                                 .color(color(theme.base.text_muted)),
                         )
@@ -722,6 +768,116 @@ pub fn update_window_snap(
     }
 }
 
+/// A detachable panel is a genuine OS window, never an egui::Window confined
+/// to the application viewport. The content callback renders the existing panel
+/// instance and therefore must not reconstruct a new document or tool state.
+/// Close requests redock the same instance; geometry is reported to the layout
+/// owner so later detaches restore the user's preferred size.
+/// An opening size is emitted only once per continuous native-window lifetime.
+#[derive(Clone, Debug, Default)]
+pub struct NativeSurfaceLifecycle {
+    open_ids: std::collections::HashSet<String>,
+}
+
+impl NativeSurfaceLifecycle {
+    /// Give the OS the preferred size on creation, then relinquish sizing to it.
+    /// Reapplying a measured inner size on every frame can cause resize jitter,
+    /// especially when DPI conversion introduces fractional logical points.
+    pub fn opening_size(&mut self, id: &str, preferred: [f32; 2]) -> Option<[f32; 2]> {
+        self.open_ids.insert(id.to_owned()).then_some([
+            preferred[0].clamp(260.0, 4096.0),
+            preferred[1].clamp(180.0, 4096.0),
+        ])
+    }
+
+    /// Forget windows that are no longer drawn. A reopened panel receives its
+    /// last recorded preferred size instead of inheriting stale opening state.
+    pub fn retain_visible(&mut self, floating: &[ModularSurfaceState]) {
+        self.open_ids.retain(|id| {
+            floating.iter().any(|surface| {
+                surface.visible
+                    && surface.dock == SurfaceDock::Floating
+                    && surface.id == id.as_str()
+            })
+        });
+    }
+
+    pub fn clear(&mut self) {
+        self.open_ids.clear();
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct NativeSurfaceResponse {
+    pub close_requested: bool,
+    pub inner_size: Option<[f32; 2]>,
+    pub maximized: bool,
+}
+
+pub fn show_native_surface<R>(
+    ctx: &egui::Context,
+    id: &str,
+    title: &str,
+    opening_size: Option<[f32; 2]>,
+    theme: &ForgeTheme,
+    mut contents: impl FnMut(&mut Ui) -> R,
+) -> NativeSurfaceResponse {
+    let mut response = NativeSurfaceResponse::default();
+    let mut builder = egui::ViewportBuilder::default()
+        .with_title(title)
+        .with_decorations(true)
+        .with_transparent(false)
+        .with_resizable(true)
+        .with_min_inner_size([260.0, 180.0]);
+    // ViewportBuilder is submitted every frame. InnerSize is ONLY an opening
+    // hint: resubmitting measured geometry during a live resize fights the OS.
+    if let Some(size) = opening_size {
+        if size.iter().all(|dimension| dimension.is_finite()) {
+            builder = builder.with_inner_size([size[0].max(260.0), size[1].max(180.0)]);
+        }
+    }
+    ctx.show_viewport_immediate(
+        egui::ViewportId::from_hash_of(("forge.native.surface", id)),
+        builder,
+        |viewport_ui, class| {
+            viewport_ui.input(|input| {
+                response.close_requested = input.viewport().close_requested();
+                response.maximized = input.viewport().maximized.unwrap_or(false);
+                response.inner_size = input
+                    .viewport()
+                    .inner_rect
+                    .map(|rect| [rect.width(), rect.height()]);
+            });
+            // When an integration has no native viewport support, egui embeds
+            // this window. The UI stays operable and the fallback is explicit.
+            if class == egui::ViewportClass::EmbeddedWindow {
+                viewport_ui.label("Embedded panel: native windows unavailable in this host");
+            }
+            // Leave opaque shell pixels around the rounded interior: painting
+            // a square panel over the viewport otherwise erases the radius.
+            egui::CentralPanel::default()
+                .frame(
+                    Frame::new()
+                        .fill(opaque_background(theme.chrome.shell))
+                        .inner_margin(Margin::same(5)),
+                )
+                .show(viewport_ui, |ui| {
+                    let available = ui.available_size();
+                    modular_surface_frame(theme).show(ui, |ui| {
+                        let inset =
+                            2.0 * (theme.effective_metrics().panel_padding.max(4) as f32 + 4.0);
+                        ui.set_min_size(egui::vec2(
+                            (available.x - inset).max(0.0),
+                            (available.y - inset).max(0.0),
+                        ));
+                        let _ = contents(ui);
+                    });
+                });
+        },
+    );
+    response
+}
+
 pub fn modular_surface_frame(theme: &ForgeTheme) -> Frame {
     Frame::new()
         .fill(opaque_background(theme.base.panel))
@@ -730,7 +886,41 @@ pub fn modular_surface_frame(theme: &ForgeTheme) -> Frame {
             color(theme.chrome.separator),
         ))
         .corner_radius(theme.interaction.surface_radius.clamp(0.0, 20.0) as u8)
+        .outer_margin(Margin::same(4))
         .inner_margin(Margin::same(theme.effective_metrics().panel_padding.max(4)))
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SurfaceTabsResponse {
+    pub selected: Option<String>,
+    pub drag_started: Option<String>,
+}
+
+/// Every registered modular surface has a movable tab, not merely a title grip.
+pub fn show_draggable_surface_tabs(
+    ui: &mut Ui,
+    surfaces: &[ModularSurfaceState],
+    active: &str,
+    theme: &ForgeTheme,
+) -> SurfaceTabsResponse {
+    let mut result = SurfaceTabsResponse::default();
+    ui.horizontal_wrapped(|ui| {
+        for surface in surfaces {
+            let response = ui.add(
+                Button::new(RichText::new(&surface.title).size(12.0))
+                    .selected(surface.id == active)
+                    .sense(Sense::click_and_drag())
+                    .corner_radius(theme.interaction.surface_radius.clamp(0.0, 12.0) as u8),
+            );
+            if response.clicked() {
+                result.selected = Some(surface.id.clone());
+            }
+            if !surface.locked && response.drag_started_by(PointerButton::Primary) {
+                result.drag_started = Some(surface.id.clone());
+            }
+        }
+    });
+    result
 }
 
 pub fn show_modular_surface_tabs(
@@ -1000,6 +1190,68 @@ mod opaque_shell_tests {
             assert_eq!(opaque_shell_clear_color(&theme)[3], 1.0);
             assert_eq!(opaque_background(theme.base.panel).a(), 255);
         }
+    }
+
+    #[test]
+    fn native_surface_initial_size_is_one_shot_and_resets_on_close() {
+        let mut lifetime = NativeSurfaceLifecycle::default();
+        assert_eq!(
+            lifetime.opening_size("assets", [410.0, 580.0]),
+            Some([410.0, 580.0])
+        );
+        assert_eq!(lifetime.opening_size("assets", [560.0, 620.0]), None);
+        assert_eq!(
+            lifetime.opening_size("inspector", [320.0, 420.0]),
+            Some([320.0, 420.0])
+        );
+        let visible = vec![ModularSurfaceState::new(
+            "inspector",
+            "Inspector",
+            SurfaceDock::Floating,
+        )];
+        lifetime.retain_visible(&visible);
+        assert_eq!(
+            lifetime.opening_size("assets", [560.0, 620.0]),
+            Some([560.0, 620.0])
+        );
+        assert_eq!(lifetime.opening_size("inspector", [600.0, 800.0]), None);
+        lifetime.clear();
+        assert_eq!(
+            lifetime.opening_size("inspector", [600.0, 800.0]),
+            Some([600.0, 800.0])
+        );
+    }
+
+    #[test]
+    fn native_surface_opening_size_is_bounded() {
+        let mut lifetime = NativeSurfaceLifecycle::default();
+        assert_eq!(
+            lifetime.opening_size("small", [50.0, 40.0]),
+            Some([260.0, 180.0])
+        );
+        assert_eq!(
+            lifetime.opening_size("large", [9000.0, 9000.0]),
+            Some([4096.0, 4096.0])
+        );
+    }
+
+    #[test]
+    fn native_detachment_preserves_identity_and_redocks_home() {
+        let mut surface = ModularSurfaceState::new("asset", "Assets", SurfaceDock::Right);
+        surface.preferred_size = [410.0, 580.0];
+        assert!(surface.move_to(SurfaceDock::Floating));
+        assert_eq!(surface.last_dock, SurfaceDock::Right);
+        assert_eq!(surface.id, "asset");
+        assert!(surface.redock());
+        assert_eq!(surface.dock, SurfaceDock::Right);
+        assert_eq!(surface.preferred_size, [410.0, 580.0]);
+        assert!(surface.move_to(SurfaceDock::Left));
+        assert!(surface.move_to(SurfaceDock::Floating));
+        assert!(surface.redock());
+        assert_eq!(surface.dock, SurfaceDock::Left);
+        surface.locked = true;
+        assert!(!surface.move_to(SurfaceDock::Floating));
+        assert_eq!(surface.dock, SurfaceDock::Left);
     }
 
     #[test]
