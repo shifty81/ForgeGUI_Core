@@ -98,3 +98,52 @@
 
 ## FG-C71R source-aware correction (requires local Full Gate)
 Shared `forge_gui_egui` docking is unified; the newer native-window GUI Lab is preserved and persists modular surface placement through eframe storage. The Lab currently has a separate `ModularSurfaceState` layout authority; merging both systems under one authoritative docking interface is still required before claiming universal docking completion. Semantic browser and panel icons are improved. CI and icon-font initialization already existed in this source and are not overwritten.
+
+## FG-C74 measured docking candidate (Windows Full Gate pending)
+
+| Capability | Source implementation | Still needed |
+|---|---|---|
+| Main dock-drop hit testing | Actual visible panel rectangles with center fallback only inside shell | Full nested split tree |
+| Main dock-drop preview | Per-panel tab target and corrected label | Split-edge previews once split operations exist |
+| Floating tab selection/order | Separate persisted active-tab map and stable ordered IDs | Multi-monitor/native drag certification |
+| FG-C72 resize and FG-C73 frameless hosts | Preserved in cumulative source | Full Windows interaction gate |
+
+## FG-C75 nested docking model (Windows Full Gate pending)
+
+| Capability | Source status | Remaining |
+|---|---|---|
+| Reusable target-relative nested split/tab model | Versioned `forge_gui_chrome::docking::ModularDockTree`, atomic move/attach/detach and reconciliation implemented | Connect actual Lab rendering and persisted split ratios |
+| Floating self-target protection | Live Lab filters same-host/hidden/locked sources; release clears stale origin drag | Certify native cross-viewport transfer events on Windows |
+| Split drop geometry | Leaf-specific target zone and preview helpers, with unit tests | Show zones only after real nested split renderer is wired |
+| Release certification | Patch and archive checks only | Run PCC Full Gate, GUI drag and multi-monitor tests |
+
+## FG-C76 live GUI Lab dock-tree candidate (Windows Full Gate pending)
+
+| Capability | C76 implementation | Outstanding certification |
+|---|---|---|
+| Main GUI Lab layout | Replaced four fixed dock regions with recursive `ModularDockTree` rendering | Windows visual interaction and mixed-DPI |
+| Nested splits | Recursive horizontal/vertical layout and draggable ratio handles | Manual resizing, edge cases and persistence test |
+| Tab and split drop | Measured leaf-local center/edge drop zone, model-backed commit, live preview | Native pointer crossing between OS windows |
+| Persistence | Versioned `forgegui.core.dock_tree.v1` restored/reconciled with catalog | Local restart and corrupted saved layout smoke test |
+| Floating host | C73–C75 native frameless grouping retained; shell tree membership updated | Recursive splits within floating hosts still absent |
+| Shared consumer shell | Independent runtime remains, no migration claimed | Adapter unification and external consumer certification |
+
+## FG-C77 native-host tree candidate (Windows Full Gate pending)
+
+| Capability | Source candidate | Unverified |
+|---|---|---|
+| Floating-host layouts | Independent versioned `ModularDockTree` per native host, saved and reconciled | Windows restart, DPI and multiple monitors |
+| Recursive floating panels | Common shell renderer supports floating tab leaves and draggable nested split dividers | Live native resize and all window-manager behaviors |
+| Floating drag/drop | Per-leaf center/edge previews, candidate-first transaction and old-host detach | End-to-end cross-OS-window pointer routing |
+| Consumer adapter | Unchanged; Lab-only migration | Migrate `forge_gui_egui` to the same layout model |
+
+## FG-C78 consumer docking convergence — candidate, NOT certified
+
+| Area | Source state | Certification still required |
+|---|---|---|
+| `forge_gui_egui` canonical layout | Main and floating use shared `ModularDockTree`; `DockState` source removed | Windows `cargo check`, tests, Clippy |
+| Consumer view adapter | Recursive tab/split rendering and leaf-local drop; in-app floating windows | Actual GUI pointer and resize tests |
+| Instance ownership | Stable encoded IDs, candidate-first host transfer, hide/reopen, validated saved-surface restore | Cross-host and multi-instance live tests |
+| Public consumer API | `dock_tree` / `restore_layout` / `dock_relative` | Migrate old `.dock_state()` callers; independent consumer build |
+| Native OS float | Existing Lab native hosting preserved, consumer only in-app egui hosts | Explicit native bridge and mixed-DPI |
+| Dependency pruning | Old `egui_dock` declaration remains unused pending lock regeneration | Windows Cargo lock validation |

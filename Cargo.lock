@@ -1352,6 +1352,7 @@ version = "0.4.8"
 dependencies = [
  "egui",
  "egui_dock",
+ "forge_gui_chrome",
  "forge_gui_core",
 ]
 

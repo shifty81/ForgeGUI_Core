@@ -123,3 +123,44 @@ setup step.
 Preserve the newer native-window Lab; port the shared `ForgeGuiRuntime` to one egui_dock tree, improve semantic icon coverage and persist current Lab modular-surface positions. Follow-on: bridge the Lab modular surface authority to the shared dock tree (rather than replacing its existing native viewport support), then certify full Windows drag/snap/DPI and compile/test results.
 
 FG-C71R does not modify Cargo/PCC: the current project already builds the single canonical `forge_gui_lab` through its PCC.
+
+## FG-C73/C74 cumulative continuation — source candidate, Windows gate pending
+
+- C73 native frameless floating hosts/tab groups are retained without replaying C71/C72.
+- C74 switches the Lab's dock-drop hit testing to measured panel rectangles, adds live native-host hover indication, and saves selected floating tabs and stable tab order under additive storage keys.
+- **Still required:** one canonical nested dock-tree owner for the Lab and shared application shell, native-viewport drag bridge with event ownership, split/tab serialization and migration, multi-monitor validation, actual renderer tests and Windows Full Gate. Region tab groups do not count as arbitrary nested splits.
+- Never enqueue a Cortex-consumer patch targeting missing `apps/forge_control_center` files inside ForgeGUI; archive it safely outside root intake until the proper consumer repository is available.
+
+## FG-C75 cumulative progress / C76 integration next
+
+- Source implements a renderer-neutral, versioned recursive tab/split dock tree with atomic transactions, split ratio limits, legacy surface reconciliation and unit coverage. It is exported from `forge_gui_chrome::docking` but is not yet the Lab's live view/model authority.
+- Lab native floating transfers now reject a source rejoining its own host, refuse locked/invisible transfer candidates, and clear drag state after a real source-viewport release rather than waiting for pointer-hover to vanish.
+- **C76 required:** remove Lab's separate fixed left/right/bottom/center grouping and draw all docked leaves from one tree, then store split ratios and tab activity. Keep native-host window lifecycle separate from logical dock layout but commit transitions atomically. Do not call split docking complete until visual and Windows interaction tests pass.
+- **C77 onward:** cross-native-window drop capture, monitor reattachment, DPI and no jitter/regression, actual GPU surface and keyboard-accessible dock actions. PCC Full Gate is still required for C75.
+
+## After FG-C76 (cumulative candidate)
+
+- C76: GUI Lab has an actual recursive tree renderer, nested split resizing,
+  leaf-local edge/center drops, and persisted tree schema. **Windows gate pending.**
+- C77: Cross-native viewport drag bridge; versioned floating-host subtrees,
+  native window group merge/split, monitor-safe pointer coordinate handling.
+- C78: Windows Full Gate, drag/resize/restart tests at mixed-DPI and with
+  multiple monitors; fix any compile or interaction failures from C76/C77.
+- C79: Consolidate shared runtime and consumer shell docking adapters on the
+  canonical model without breaking independent project-owned services.
+- C80: Polish, profiling, accessibility, screenshot regression and release
+  qualification. No application/library-wide completion claim before all gates.
+
+## After FG-C77 (cumulative candidate)
+
+- C77: native floating hosts have their own persisted dock trees, live recursive tab/split rendering and per-leaf drop proposals, with source tests for migration/ownership. **Not a certified Windows native drag bridge**: crossing independent OS windows, monitor scaling, and edge-resize must be checked on a real machine.
+- C78: migrate `forge_gui_egui` consumer shell from its independent `egui_dock` state to the canonical `ModularDockTree`, remove dual layout authority, expose stable host registration contracts.
+- C79: Windows Full Gate and GUI interaction certification, real multi-viewport pointer telemetry, stale drag prevention and mixed-DPI bounds.
+- Later: GPU canvas presentation, widget behavior audit, accessibility, performance and distributable SDK.
+
+## After FG-C78 — cumulative candidate, local Full Gate not yet run
+
+- C78 code migrates the independent `forge_gui_egui` model to the canonical `ModularDockTree`; it still needs an actual Rust/Windows build and an independent consumer acceptance build. The public adapter API intentionally changed from `dock_state` to `dock_tree`; audit all external users before release. The consumer adapter's floating windows are in-app egui hosts, while GUI Lab retains native OS viewports.
+- C79: run Windows PCC Full Gate against the exact cumulative source, repair compile/API failures, test frame-by-frame drag ownership, redock, mixed DPI and resize stability. Prune the unused `egui_dock` dependency with Cargo-managed lock regeneration once source compiles.
+- C80: refine shared chrome and consumer integration (including native viewport host contract), deterministic interaction/screenshot tests, accessibility and performance. GPU canvas and full widget SDK certification remain later milestones.
+- All passes remain cumulative until the user confirms they are home. Do not imply local builds passed from patch-application tests alone.

@@ -7,7 +7,7 @@
     "self_excluded":  true,
     "cargo_lock_policy":  "Cargo.lock is retained and committed; it is excluded from package-manifest coverage but participates in the source fingerprint and locked certification.",
     "format_state":  "canonical",
-    "file_count":  176,
+    "file_count":  183,
     "files":  [
                   {
                       "path":  ".gitattributes",
@@ -41,8 +41,8 @@
                   },
                   {
                       "path":  "CHANGELOG.md",
-                      "bytes":  8897,
-                      "sha256":  "e77d832b7b020770dbd4974e5e53d8ffc7191ad2c10217abb56c16e515a7225d"
+                      "bytes":  11315,
+                      "sha256":  "fecf68498b216c13feb09bca7a1a72f84d08da75869f823bde1b0d65529f29b3"
                   },
                   {
                       "path":  "crates/forge_authoring_core/Cargo.toml",
@@ -130,9 +130,14 @@
                       "sha256":  "af1b0f79206b9b06a966d54a537ed92a84c7d10f86ef5ff98f960d5c78bf4813"
                   },
                   {
+                      "path":  "crates/forge_gui_chrome/src/docking.rs",
+                      "bytes":  28682,
+                      "sha256":  "37193d93aadf5298b4516f4002a276c65c42b8c2c868b783faa7e0866ad446e8"
+                  },
+                  {
                       "path":  "crates/forge_gui_chrome/src/lib.rs",
-                      "bytes":  41851,
-                      "sha256":  "e6277b51f99ba76fadf9ded39492ff3b9ba35e6121031431306b110789802da2"
+                      "bytes":  44719,
+                      "sha256":  "bebacb90ca641d081f609c62fcf751bb8759425a3c3dfe590ef88715cedf9a9c"
                   },
                   {
                       "path":  "crates/forge_gui_command/Cargo.toml",
@@ -196,13 +201,13 @@
                   },
                   {
                       "path":  "crates/forge_gui_egui/Cargo.toml",
-                      "bytes":  251,
-                      "sha256":  "51e7fbff5522fe0862074fe4735b3a8325ee82c6bb03fd37e781e1b27aa07a9e"
+                      "bytes":  304,
+                      "sha256":  "04469dec1251f4c0beb4071001f55d0c3eb19e9524a9bf05a8011ace993b53ab"
                   },
                   {
                       "path":  "crates/forge_gui_egui/src/lib.rs",
-                      "bytes":  17928,
-                      "sha256":  "9bf63709ac782cab833b94f6e2f8b57f8982acac74dacf4ee38ed95e8f3cb7dc"
+                      "bytes":  36707,
+                      "sha256":  "9733ff7b7e6673c708d49988094de5d94e7a076ae8f708c5112203ee2e98cd87"
                   },
                   {
                       "path":  "crates/forge_gui_extension/Cargo.toml",
@@ -625,6 +630,36 @@
                       "sha256":  "5e505702a4bf5bda9eead89dd63e2a4c8d3b0c4148ae994ca812c364ae298a2f"
                   },
                   {
+                      "path":  "docs/forge_gui/FG_C73_FRAMELESS_FLOATING_GROUP_FOUNDATION.md",
+                      "bytes":  3920,
+                      "sha256":  "d328a9ed05ddeccb64b441a4089658b6485b0dc1bd8edcbb70d4e9f05995aee4"
+                  },
+                  {
+                      "path":  "docs/forge_gui/FG_C74_DOCK_TARGET_AND_FLOATING_PERSISTENCE.md",
+                      "bytes":  4144,
+                      "sha256":  "fd0ba90d1c46203095d6f5380e6db735d8fa0fa1fcc0a227219a2480d1a907c9"
+                  },
+                  {
+                      "path":  "docs/forge_gui/FG_C75_NESTED_DOCK_MODEL.md",
+                      "bytes":  3426,
+                      "sha256":  "2c804824888c4e6f720647f64d9740403bc5e50008d5cccd2e821919b4dac4c4"
+                  },
+                  {
+                      "path":  "docs/forge_gui/FG_C76_LIVE_NESTED_DOCK_RENDERER.md",
+                      "bytes":  4281,
+                      "sha256":  "072027bba9be90cb1146c24c1c72449fde7eb89dd9ede5549a429b07c8bbe5f7"
+                  },
+                  {
+                      "path":  "docs/forge_gui/FG_C77_FLOATING_HOST_DOCK_TREES.md",
+                      "bytes":  2987,
+                      "sha256":  "2a39c084d1708e92442f4e4b8dbb1c6aadc701d24153f1fffbb65bc699977610"
+                  },
+                  {
+                      "path":  "docs/forge_gui/FG_C78_CONSUMER_CANONICAL_DOCK_ADAPTER.md",
+                      "bytes":  4312,
+                      "sha256":  "217cf3cd4661fb7d29c3063b274bb6501206fafbd5e429a7c15d856f7478a8d8"
+                  },
+                  {
                       "path":  "docs/forge_gui/FORGEGUI_CANVAS_FIRST_SHELL_STANDARD.md",
                       "bytes":  6798,
                       "sha256":  "27fa5f6f4b8e217565525444831e955614160166e502e45e4b8dfcb13224dfb1"
@@ -761,8 +796,8 @@
                   },
                   {
                       "path":  "examples/forge_gui_lab/src/main.rs",
-                      "bytes":  97341,
-                      "sha256":  "38fe4dd7810e8b7b93b7d8058422c44a6b56a1309a3c85c8e4896deab1a490bd"
+                      "bytes":  124942,
+                      "sha256":  "cdc0aece2eb56694ec3a1ec83ed694d41cc6ee359bd3e02626b9960617b7e9f3"
                   },
                   {
                       "path":  "examples/forge_gui_micro_lab/Cargo.toml",
@@ -776,8 +811,8 @@
                   },
                   {
                       "path":  "FEATURE_MATRIX.md",
-                      "bytes":  8443,
-                      "sha256":  "46f96ea21e8702ceca8f608065145848dc2f7d5564982cd1999bf2121a04de5c"
+                      "bytes":  12567,
+                      "sha256":  "f321b43037f157ae11382780c4ea7facf87104e8b0bb83997c9d5114a0d3212a"
                   },
                   {
                       "path":  "forge.gui.toml",
@@ -786,8 +821,8 @@
                   },
                   {
                       "path":  "FORGEGUI_CORE_NEXT_PASSES.md",
-                      "bytes":  6885,
-                      "sha256":  "83f9da923aa14c5be089445073eb2183a2e61ea3ebf6f394742037a3bcdfaee2"
+                      "bytes":  11641,
+                      "sha256":  "45c82a3ee8308a6f5a7ef21e20b75159b223256821a2a0b5c6d1c85bf964943c"
                   },
                   {
                       "path":  "INTEGRATION_MATRIX.md",

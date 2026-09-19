@@ -99,3 +99,24 @@
 
 ## 0.4.0
 - Introduced semantic icon/widget foundations, the OSS evaluation lane, and manifest-aware root hygiene.
+
+## FG-C75 (2026-09-18) — cumulative nested-docking foundation
+
+Added an exported, versioned nested tab/split docking model with safe saved-layout reconciliation and target-relative move operations, plus model unit tests. Hardened native floating transfer against dropping a panel onto its own host and against a stale drag surviving a real pointer release. These changes are bundled cumulatively with C73/C74; arbitrary nested panes are not yet rendered by the Lab and the Windows Full Gate has not run in this authoring environment. See `docs/forge_gui/FG_C75_NESTED_DOCK_MODEL.md`.
+
+## FG-C76 — live nested dock renderer (2026-09-18, source candidate)
+- Replace the GUI Lab fixed region layout with live tree-driven tabs, arbitrary recursive splits, draggable ratios and exact leaf-local center/edge drop previews.
+- Persist the versioned dock tree independently of legacy per-panel storage; reconcile hide/reopen/native hosts without duplicating panel IDs.
+- Retain C73–C75 frameless native floating hosts, group tabs, resize safeguards and prior source fixes. Windows Full Gate remains pending.
+
+## FG-C77 — native host nested docking (2026-09-18, cumulative source candidate)
+- Added validated, persisted native-host dock subtrees and reused the same recursive tab/split renderer inside floating windows.
+- Added leaf-targeted same-host and cross-host tab/split transactions with source-tree detach after candidate commit, plus model and GUI Lab source tests.
+- Preserved C73–C76 and C72 size ownership. Native drag and Windows Full Gate still require testing.
+
+## FG-C78 — canonical consumer adapter source candidate (Windows gate pending)
+
+- Migrated `forge_gui_egui::ForgeGuiRuntime` from independent `egui_dock::DockState` ownership to the shared, versioned `ModularDockTree` used by GUI Lab.
+- Added canonical consumer tree rendering, nested split resizing, tab/edge drag transactions, floating group model, instance identity mapping, and eight unexecuted Rust test functions.
+- Added `forge_gui_chrome` to the consumer Cargo dependency/lock entry. Legacy `egui_dock` package remains declared temporarily pending certified lockfile pruning, but its data model is no longer used by consumer source.
+- Preserves cumulative C73–C77 work and all earlier native GUI Lab features. External consumer API migration from `.dock_state()` to `.dock_tree()` is necessary. Windows Cargo/Full Gate pending.

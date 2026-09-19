@@ -2,13 +2,16 @@
 
 use eframe::egui;
 use forge_gui_browser::{show_browser, BrowserItem, BrowserItemKind, BrowserModel};
+use forge_gui_chrome::docking::{
+    drop_preview_rect, drop_zone, DockDrop, DockNode, ModularDockTree, SplitAxis,
+};
 use forge_gui_chrome::{
     apply_creator_visuals, modular_surface_frame, paint_edge_reveal_indicator, pointer_near_edge,
     restore_surface_layout, show_chrome_bar, show_draggable_surface_tabs, show_native_surface,
     show_project_title_bar, show_status_items, show_tool_tray_tabs, show_viewport_resize_handles,
-    show_workspace_tabs, update_window_snap, ChromeBarKind, ChromeEdge, ModularSurfaceState,
-    ModularToolbarState, NativeSurfaceLifecycle, ShellProfile, StatusItem, SurfaceDock,
-    ToolTrayTab, ToolbarDock, WindowSnapState, WorkspaceTab,
+    show_workspace_tabs, ChromeBarKind, ChromeEdge, ModularSurfaceState, ModularToolbarState,
+    NativeSurfaceLifecycle, ShellProfile, StatusItem, SurfaceDock, ToolTrayTab, ToolbarDock,
+    WorkspaceTab,
 };
 use forge_gui_command::{show_command_palette, CommandPalette, PaletteEntry};
 use forge_gui_core::{PropertyField, PropertyObject, PropertyValue};
@@ -35,6 +38,11 @@ use forge_render_surface::{RenderFamily, RenderSurfaceDescriptor, RenderSurfaceH
 use forge_scene_core::{ForgeScene, SceneEntity};
 
 const SURFACE_STORAGE_KEY: &str = "forgegui.core.modular_surfaces.v1";
+// Kept separate from the legacy surface layout so old saves remain readable.
+const FLOATING_ACTIVE_STORAGE_KEY: &str = "forgegui.core.floating_active.v1";
+const FLOATING_TAB_ORDER_STORAGE_KEY: &str = "forgegui.core.floating_tab_order.v1";
+const DOCK_TREE_STORAGE_KEY: &str = "forgegui.core.dock_tree.v1";
+const FLOATING_DOCK_TREES_STORAGE_KEY: &str = "forgegui.core.floating_dock_trees.v1";
 
 fn main() -> eframe::Result {
     let native_options = eframe::NativeOptions {
@@ -66,16 +74,22 @@ struct CreatorStudioLab {
     show_modular_surfaces: bool,
     modular_surfaces: Vec<ModularSurfaceState>,
     native_surface_lifecycle: NativeSurfaceLifecycle,
+    active_floating_surfaces: std::collections::BTreeMap<String, String>,
+    floating_tab_order: Vec<String>,
+    // Geometry is measured by the actual panels, never guessed from shell edges.
+    dock_tree: ModularDockTree,
+    // Each native viewport owns its own validated subtree, but all use the
+    // same DockNode model and rendering logic as the main application.
+    floating_dock_trees: std::collections::BTreeMap<String, ModularDockTree>,
+    floating_leaf_rects: Vec<(String, String, egui::Rect)>,
+    // Actual leaf rectangles and stable target IDs, not legacy region guesses.
+    dock_leaf_rects: Vec<(String, egui::Rect)>,
     toolbar_state: ModularToolbarState,
-    window_snap: WindowSnapState,
     surface_drag: Option<String>,
+    floating_drag_origin: Option<String>,
     surface_drag_preview: Option<SurfaceDock>,
     toolbar_dragging: bool,
     toolbar_drag_preview: Option<ToolbarDock>,
-    active_left_surface: String,
-    active_center_surface: String,
-    active_right_surface: String,
-    active_bottom_surface: String,
     layout: ForgeLayoutState,
     workspace_tabs: Vec<WorkspaceTab>,
     show_workspace_tabs: bool,
@@ -117,6 +131,43 @@ impl CreatorStudioLab {
                 .unwrap_or_default(),
         );
 
+        let dock_tree = ModularDockTree::restored(
+            cc.storage.and_then(|storage| {
+                eframe::get_value::<ModularDockTree>(storage, DOCK_TREE_STORAGE_KEY)
+            }),
+            &surfaces,
+        );
+
+        let saved_floating_dock_trees = cc
+            .storage
+            .and_then(|storage| {
+                eframe::get_value::<std::collections::BTreeMap<String, ModularDockTree>>(
+                    storage,
+                    FLOATING_DOCK_TREES_STORAGE_KEY,
+                )
+            })
+            .unwrap_or_default();
+        let floating_dock_trees =
+            reconcile_floating_dock_trees(saved_floating_dock_trees, &surfaces);
+
+        let active_floating_surfaces = cc
+            .storage
+            .and_then(|storage| {
+                eframe::get_value::<std::collections::BTreeMap<String, String>>(
+                    storage,
+                    FLOATING_ACTIVE_STORAGE_KEY,
+                )
+            })
+            .unwrap_or_default();
+        let floating_tab_order = normalize_floating_tab_order(
+            &surfaces,
+            cc.storage
+                .and_then(|storage| {
+                    eframe::get_value::<Vec<String>>(storage, FLOATING_TAB_ORDER_STORAGE_KEY)
+                })
+                .unwrap_or_default(),
+        );
+
         let mut scene = ForgeScene::new("creator.lab.scene", "Creator Studio Demo");
         scene
             .insert_root(SceneEntity::new("entity.world", "World Root"))
@@ -145,16 +196,18 @@ impl CreatorStudioLab {
             show_modular_surfaces: true,
             modular_surfaces: surfaces,
             native_surface_lifecycle: NativeSurfaceLifecycle::default(),
+            active_floating_surfaces,
+            floating_tab_order,
+            dock_tree,
+            floating_dock_trees,
+            floating_leaf_rects: Vec::new(),
+            dock_leaf_rects: Vec::new(),
             toolbar_state: ModularToolbarState::default(),
-            window_snap: WindowSnapState::default(),
             surface_drag: None,
+            floating_drag_origin: None,
             surface_drag_preview: None,
             toolbar_dragging: false,
             toolbar_drag_preview: None,
-            active_left_surface: "surface.content".into(),
-            active_center_surface: "surface.home".into(),
-            active_right_surface: "surface.universal".into(),
-            active_bottom_surface: "surface.activity".into(),
             layout,
             workspace_tabs: workspace_tabs(),
             show_workspace_tabs: true,
@@ -322,13 +375,16 @@ impl CreatorStudioLab {
         let restored = restore_surface_layout(&mut self.modular_surfaces, &modular_surfaces());
         self.toolbar_state = ModularToolbarState::default();
         self.surface_drag = None;
+        self.floating_drag_origin = None;
         self.surface_drag_preview = None;
+        self.active_floating_surfaces.clear();
+        self.floating_tab_order.clear();
+        self.floating_dock_trees.clear();
+        self.floating_leaf_rects.clear();
+        self.dock_tree = ModularDockTree::restored(None, &self.modular_surfaces);
+        self.dock_leaf_rects.clear();
         self.toolbar_dragging = false;
         self.toolbar_drag_preview = None;
-        self.active_left_surface = "surface.content".into();
-        self.active_center_surface = "surface.home".into();
-        self.active_right_surface = "surface.universal".into();
-        self.active_bottom_surface = "surface.activity".into();
         self.layout.active_workspace = "workspace.application".into();
         self.show_menu_bar = true;
         self.show_workspace_tabs = true;
@@ -353,72 +409,11 @@ impl CreatorStudioLab {
             return;
         };
         surface.visible = true;
-        match surface.dock {
-            SurfaceDock::Left => self.active_left_surface = surface.id.clone(),
-            SurfaceDock::Center => self.active_center_surface = surface.id.clone(),
-            SurfaceDock::Right => self.active_right_surface = surface.id.clone(),
-            SurfaceDock::Bottom => self.active_bottom_surface = surface.id.clone(),
-            SurfaceDock::Floating => {}
-        }
-        self.last_action = format!("Opened surface: {}", surface.title);
-    }
-
-    fn ensure_active_surface(
-        &mut self,
-        dock: SurfaceDock,
-        surfaces: &[ModularSurfaceState],
-    ) -> String {
-        let current = match dock {
-            SurfaceDock::Left => self.active_left_surface.clone(),
-            SurfaceDock::Center => self.active_center_surface.clone(),
-            SurfaceDock::Right => self.active_right_surface.clone(),
-            SurfaceDock::Bottom => self.active_bottom_surface.clone(),
-            SurfaceDock::Floating => String::new(),
-        };
-        if surfaces.iter().any(|surface| surface.id == current) {
-            return current;
-        }
-        let fallback = surfaces
-            .first()
-            .map(|surface| surface.id.clone())
-            .unwrap_or_default();
-        match dock {
-            SurfaceDock::Left => self.active_left_surface = fallback.clone(),
-            SurfaceDock::Center => self.active_center_surface = fallback.clone(),
-            SurfaceDock::Right => self.active_right_surface = fallback.clone(),
-            SurfaceDock::Bottom => self.active_bottom_surface = fallback.clone(),
-            SurfaceDock::Floating => {}
-        }
-        fallback
-    }
-
-    fn set_active_surface(&mut self, dock: SurfaceDock, id: String) {
-        match dock {
-            SurfaceDock::Left => self.active_left_surface = id,
-            SurfaceDock::Center => self.active_center_surface = id,
-            SurfaceDock::Right => self.active_right_surface = id,
-            SurfaceDock::Bottom => self.active_bottom_surface = id,
-            SurfaceDock::Floating => {}
-        }
-    }
-
-    fn dock_group_locked(&self, dock: SurfaceDock) -> bool {
-        let active = match dock {
-            SurfaceDock::Left => self.active_left_surface.as_str(),
-            SurfaceDock::Center => self.active_center_surface.as_str(),
-            SurfaceDock::Right => self.active_right_surface.as_str(),
-            SurfaceDock::Bottom => self.active_bottom_surface.as_str(),
-            SurfaceDock::Floating => return false,
-        };
-        self.modular_surfaces
-            .iter()
-            .find(|surface| surface.visible && surface.dock == dock && surface.id == active)
-            .or_else(|| {
-                self.modular_surfaces
-                    .iter()
-                    .find(|surface| surface.visible && surface.dock == dock)
-            })
-            .is_some_and(|surface| surface.locked)
+        let title = surface.title.clone();
+        self.dock_tree =
+            ModularDockTree::restored(Some(self.dock_tree.clone()), &self.modular_surfaces);
+        self.dock_tree.activate(id);
+        self.last_action = format!("Opened surface: {title}");
     }
 
     fn show_surface_content(&mut self, ui: &mut egui::Ui, id: &str) {
@@ -456,118 +451,272 @@ impl CreatorStudioLab {
         }
     }
 
-    fn show_dock_group(&mut self, ui: &mut egui::Ui, dock: SurfaceDock) {
-        let surfaces: Vec<ModularSurfaceState> = self
-            .modular_surfaces
+    /// Render a snapshot of the validated tree. UI events are committed to the
+    /// authoritative model, and the next frame renders the new structure.
+    /// The model is never reconstructed from four fixed regional panels.
+    fn show_dock_node(
+        &mut self,
+        ui: &mut egui::Ui,
+        node: &DockNode,
+        rect: egui::Rect,
+        path: &[bool],
+        host: Option<&str>,
+    ) {
+        if rect.width() < 32.0 || rect.height() < 32.0 {
+            return;
+        }
+        match node {
+            DockNode::Tabs { tabs, active } => {
+                let leaf_id = format!("forge.dock.leaf.{}.{path:?}", host.unwrap_or("shell"));
+                ui.scope_builder(
+                    egui::UiBuilder::new().id_salt(leaf_id).max_rect(rect),
+                    |ui| self.show_dock_leaf(ui, tabs, active, rect, host),
+                );
+            }
+            DockNode::Split {
+                axis,
+                ratio,
+                first,
+                second,
+            } => {
+                let gap = 6.0;
+                let ratio = (*ratio).clamp(0.12, 0.88);
+                let (first_rect, splitter, second_rect) = match axis {
+                    SplitAxis::Horizontal => {
+                        let x = rect.left() + rect.width() * ratio;
+                        (
+                            egui::Rect::from_min_max(
+                                rect.min,
+                                egui::pos2(x - gap * 0.5, rect.bottom()),
+                            ),
+                            egui::Rect::from_min_max(
+                                egui::pos2(x - gap * 0.5, rect.top()),
+                                egui::pos2(x + gap * 0.5, rect.bottom()),
+                            ),
+                            egui::Rect::from_min_max(
+                                egui::pos2(x + gap * 0.5, rect.top()),
+                                rect.max,
+                            ),
+                        )
+                    }
+                    SplitAxis::Vertical => {
+                        let y = rect.top() + rect.height() * ratio;
+                        (
+                            egui::Rect::from_min_max(
+                                rect.min,
+                                egui::pos2(rect.right(), y - gap * 0.5),
+                            ),
+                            egui::Rect::from_min_max(
+                                egui::pos2(rect.left(), y - gap * 0.5),
+                                egui::pos2(rect.right(), y + gap * 0.5),
+                            ),
+                            egui::Rect::from_min_max(
+                                egui::pos2(rect.left(), y + gap * 0.5),
+                                rect.max,
+                            ),
+                        )
+                    }
+                };
+                let mut first_path = path.to_vec();
+                first_path.push(false);
+                self.show_dock_node(ui, first, first_rect, &first_path, host);
+                let mut second_path = path.to_vec();
+                second_path.push(true);
+                self.show_dock_node(ui, second, second_rect, &second_path, host);
+                let handle = ui.interact(
+                    splitter.expand(3.0),
+                    ui.id().with(("forge.dock.split", path.to_vec())),
+                    egui::Sense::click_and_drag(),
+                );
+                if handle.dragged_by(egui::PointerButton::Primary) {
+                    if let Some(pointer) = ui.ctx().pointer_hover_pos() {
+                        let next = match axis {
+                            SplitAxis::Horizontal => (pointer.x - rect.left()) / rect.width(),
+                            SplitAxis::Vertical => (pointer.y - rect.top()) / rect.height(),
+                        };
+                        if let Some(host) = host {
+                            if let Some(tree) = self.floating_dock_trees.get_mut(host) {
+                                tree.resize_split(path, next);
+                            }
+                        } else {
+                            self.dock_tree.resize_split(path, next);
+                        }
+                    }
+                }
+                let cursor = match axis {
+                    SplitAxis::Horizontal => egui::CursorIcon::ResizeHorizontal,
+                    SplitAxis::Vertical => egui::CursorIcon::ResizeVertical,
+                };
+                handle.on_hover_cursor(cursor);
+                ui.painter()
+                    .rect_filled(splitter, 2.0, color(self.theme.chrome.separator));
+            }
+        }
+    }
+
+    fn show_dock_leaf(
+        &mut self,
+        ui: &mut egui::Ui,
+        tabs: &[String],
+        selected: &str,
+        leaf_rect: egui::Rect,
+        host: Option<&str>,
+    ) {
+        let surfaces: Vec<ModularSurfaceState> = tabs
             .iter()
-            .filter(|surface| surface.visible && surface.dock == dock)
-            .cloned()
+            .filter_map(|id| {
+                self.modular_surfaces
+                    .iter()
+                    .find(|surface| {
+                        surface.id == *id
+                            && surface.visible
+                            && match host {
+                                None => surface.dock != SurfaceDock::Floating,
+                                Some(host) => {
+                                    surface.dock == SurfaceDock::Floating
+                                        && surface.floating_host_id() == host
+                                }
+                            }
+                    })
+                    .cloned()
+            })
             .collect();
         if surfaces.is_empty() {
             return;
         }
-
-        let active = self.ensure_active_surface(dock, &surfaces);
-        let active_surface = surfaces
+        let active = if surfaces.iter().any(|surface| surface.id == selected) {
+            selected.to_owned()
+        } else {
+            surfaces[0].id.clone()
+        };
+        let title = surfaces
             .iter()
             .find(|surface| surface.id == active)
-            .cloned();
-        let title = active_surface
-            .as_ref()
             .map(|surface| surface.title.as_str())
             .unwrap_or("Surface");
-        let locked = active_surface
-            .as_ref()
+        let locked = surfaces
+            .iter()
+            .find(|surface| surface.id == active)
             .is_some_and(|surface| surface.locked);
         let theme = self.theme.clone();
-        let mut selected = None;
-        let mut requested_dock = None;
-        let mut toggle_lock = false;
+        let mut selected_tab = None;
         let mut hide_active = false;
-        let mut drag_started = false;
-        let mut tab_drag_started: Option<String> = None;
-
+        let mut dragged_tab = None;
+        let available = ui.available_size();
         modular_surface_frame(&theme).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let drag = ui
+            ui.set_min_size(egui::vec2(
+                (available.x - 24.0).max(0.0),
+                (available.y - 24.0).max(0.0),
+            ));
+            // Dragging any unused header area should move the panel; never
+            // overlap tab or Hide hit targets with the background drag target.
+            let mut header_content_right = None;
+            let mut header_close_left = None;
+            let header = ui.horizontal(|ui| {
+                let grip = ui
                     .add(
-                        egui::Label::new(egui::RichText::new(format!("⠿  {title}")).strong())
+                        egui::Label::new(egui::RichText::new("⠿").strong())
                             .sense(egui::Sense::click_and_drag()),
                     )
                     .on_hover_text(if locked {
-                        "Surface is locked in place"
+                        "Surface locked"
                     } else {
-                        "Drag surface to dock left, center, right, or bottom"
+                        "Drag to tab, split, or float"
                     });
-                if !locked && drag.drag_started_by(egui::PointerButton::Primary) {
-                    drag_started = true;
+                if !locked && grip.drag_started_by(egui::PointerButton::Primary) {
+                    dragged_tab = Some(active.clone());
+                }
+                if surfaces.len() == 1 {
+                    let tab = ui.add(
+                        egui::Button::new(egui::RichText::new(title).strong())
+                            .selected(true)
+                            .sense(egui::Sense::click_and_drag()),
+                    );
+                    if !locked && tab.drag_started_by(egui::PointerButton::Primary) {
+                        dragged_tab = Some(active.clone());
+                    }
+                    header_content_right = Some(tab.rect.right());
+                } else {
+                    let label =
+                        ui.label(egui::RichText::new(format!("{} panels", surfaces.len())).small());
+                    header_content_right = Some(label.rect.right());
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing.x = 4.0;
-                    if panel_chrome_button(
+                    let hide = panel_chrome_button(
                         ui,
                         icon_text(IconId::Close),
                         "Hide surface",
                         false,
                         true,
                         &theme,
-                    )
-                    .clicked()
-                    {
+                    );
+                    header_close_left = Some(hide.rect.left());
+                    if hide.clicked() {
                         hide_active = true;
                     }
-                    if panel_chrome_button(
-                        ui,
-                        if locked {
-                            icon_text(IconId::PanelDock)
-                        } else {
-                            icon_text(IconId::PanelDetach)
-                        },
-                        if locked {
-                            "Unlock surface"
-                        } else {
-                            "Lock surface in place"
-                        },
-                        locked,
-                        false,
-                        &theme,
-                    )
-                    .clicked()
-                    {
-                        toggle_lock = true;
-                    }
-                    ui.menu_button("Dock ▾", |ui| {
-                        for destination in SurfaceDock::ALL {
-                            if ui
-                                .selectable_label(destination == dock, destination.label())
-                                .clicked()
-                            {
-                                requested_dock = Some(destination);
-                                ui.close();
-                            }
-                        }
-                    });
                 });
             });
-            ui.add_space(3.0);
-            let tabs = show_draggable_surface_tabs(ui, &surfaces, &active, &theme);
-            selected = tabs.selected;
-            tab_drag_started = tabs.drag_started;
+            if !locked {
+                if let (Some(content_right), Some(close_left)) =
+                    (header_content_right, header_close_left)
+                {
+                    let drag_rect = egui::Rect::from_min_max(
+                        egui::pos2(content_right + 3.0, header.response.rect.top()),
+                        egui::pos2(close_left - 3.0, header.response.rect.bottom()),
+                    );
+                    if drag_rect.width() > 8.0 && drag_rect.height() > 0.0 {
+                        let drag = ui.interact(
+                            drag_rect,
+                            ui.id().with(("forge.dock.header", active.as_str())),
+                            egui::Sense::click_and_drag(),
+                        );
+                        if drag.drag_started_by(egui::PointerButton::Primary) {
+                            dragged_tab = Some(active.clone());
+                        }
+                        drag.on_hover_cursor(egui::CursorIcon::Grab);
+                    }
+                }
+            }
+            if surfaces.len() > 1 {
+                let response = show_draggable_surface_tabs(ui, &surfaces, &active, &theme);
+                selected_tab = response.selected;
+                if dragged_tab.is_none() {
+                    dragged_tab = response.drag_started;
+                }
+            }
             ui.separator();
             self.show_surface_content(ui, &active);
         });
-
-        if drag_started || tab_drag_started.is_some() {
-            let dragged = tab_drag_started.unwrap_or_else(|| active.clone());
-            self.set_active_surface(dock, dragged.clone());
-            self.surface_drag = Some(dragged.clone());
-            self.surface_drag_preview = Some(dock);
-            self.last_action = format!("Dragging surface: {dragged}");
+        // Use the reserved leaf rectangle, not content-dependent frame overflow.
+        if let Some(host) = host {
+            self.floating_leaf_rects
+                .push((host.to_owned(), active.clone(), leaf_rect));
+        } else {
+            self.dock_leaf_rects.push((active.clone(), leaf_rect));
         }
-
-        if let Some(selected) = selected {
-            self.set_active_surface(dock, selected.clone());
+        if let Some(selected) = selected_tab {
+            if let Some(host) = host {
+                if let Some(tree) = self.floating_dock_trees.get_mut(host) {
+                    tree.activate(&selected);
+                }
+                self.active_floating_surfaces
+                    .insert(host.to_owned(), selected.clone());
+            } else {
+                self.dock_tree.activate(&selected);
+            }
             self.last_action = format!("Active surface: {selected}");
+        }
+        if let Some(dragged) = dragged_tab {
+            if let Some(host) = host {
+                if let Some(tree) = self.floating_dock_trees.get_mut(host) {
+                    tree.activate(&dragged);
+                }
+            } else {
+                self.dock_tree.activate(&dragged);
+            }
+            self.surface_drag = Some(dragged.clone());
+            self.floating_drag_origin = host.map(str::to_owned);
+            self.last_action = format!("Dragging surface: {dragged}");
         }
         if hide_active {
             if let Some(surface) = self
@@ -577,141 +726,232 @@ impl CreatorStudioLab {
             {
                 surface.visible = false;
             }
-        }
-        if toggle_lock {
-            if let Some(surface) = self
-                .modular_surfaces
-                .iter_mut()
-                .find(|surface| surface.id == active)
-            {
-                surface.locked = !surface.locked;
-            }
-        }
-        if let Some(destination) = requested_dock {
-            if !locked || destination == dock {
-                if let Some(surface) = self
-                    .modular_surfaces
-                    .iter_mut()
-                    .find(|surface| surface.id == active)
-                {
-                    let _ = surface.move_to(destination);
-                }
-                self.set_active_surface(destination, active.clone());
-                self.last_action = format!("Docked {active} → {}", destination.label());
+            if let Some(host) = host {
+                let saved = self.floating_dock_trees.get(host).cloned();
+                self.floating_dock_trees.insert(
+                    host.to_owned(),
+                    ModularDockTree::restored_for_host(saved, &self.modular_surfaces, host),
+                );
+            } else {
+                self.dock_tree =
+                    ModularDockTree::restored(Some(self.dock_tree.clone()), &self.modular_surfaces);
             }
         }
     }
 
     fn show_floating_surfaces(&mut self, ctx: &egui::Context) {
-        let floating: Vec<ModularSurfaceState> = self
-            .modular_surfaces
+        // Same recursive tabs/splits renderer inside every native host. The
+        // viewport owns size/coordinates; only the catalog owns panel identity.
+        let groups = floating_groups(&self.modular_surfaces);
+        let hosts: Vec<ModularSurfaceState> = groups
             .iter()
-            .filter(|surface| surface.visible && surface.dock == SurfaceDock::Floating)
-            .cloned()
+            .map(|(host, panels)| {
+                let mut representative = panels[0].clone();
+                representative.id = host.clone();
+                representative
+            })
             .collect();
-        self.native_surface_lifecycle.retain_visible(&floating);
+        self.native_surface_lifecycle.retain_visible(&hosts);
+        self.floating_dock_trees = reconcile_floating_dock_trees(
+            std::mem::take(&mut self.floating_dock_trees),
+            &self.modular_surfaces,
+        );
+        self.active_floating_surfaces
+            .retain(|host, _| groups.iter().any(|(id, _)| id == host));
+        self.floating_leaf_rects.clear();
 
-        for surface in floating {
+        let mut source_released = false;
+        for (host, tabs) in groups {
+            let Some(tree) = self.floating_dock_trees.get(&host).cloned() else {
+                continue;
+            };
+            let Some(node) = tree.root.clone() else {
+                continue;
+            };
+            let active = self
+                .active_floating_surfaces
+                .get(&host)
+                .filter(|id| tree.has(id))
+                .cloned()
+                .unwrap_or_else(|| tabs[0].id.clone());
+            let panel = tabs
+                .iter()
+                .find(|panel| panel.id == active)
+                .unwrap_or(&tabs[0]);
             let opening_size = self
                 .native_surface_lifecycle
-                .opening_size(&surface.id, surface.preferred_size);
-            let mut requested_dock = None;
-            let mut hide_requested = false;
-            let mut locked = surface.locked;
+                .opening_size(&host, panel.preferred_size);
+            let title = panel.title.clone();
             let theme = self.theme.clone();
-            // Native OS window: independent minimize/maximize, taskbar presence,
-            // monitor movement and resizing are handled by the window backend.
-            let native_response = show_native_surface(
-                ctx,
-                &surface.id,
-                &surface.title,
-                opening_size,
-                &theme,
-                |ui| {
+            let mut drop_requested: Option<(String, DockDrop)> = None;
+            let mut native_pointer_released = false;
+            let native_response =
+                show_native_surface(ctx, &host, &title, opening_size, &theme, |ui| {
                     ui.horizontal(|ui| {
-                        if panel_chrome_button(
-                            ui,
-                            if locked {
-                                icon_text(IconId::PanelDock)
-                            } else {
-                                icon_text(IconId::PanelDetach)
-                            },
-                            if locked {
-                                "Unlock surface"
-                            } else {
-                                "Lock surface"
-                            },
-                            locked,
-                            false,
-                            &theme,
-                        )
-                        .clicked()
-                        {
-                            locked = !locked;
+                        let grip = ui
+                            .add(egui::Label::new("⠿").sense(egui::Sense::click_and_drag()))
+                            .on_hover_text("Drag this floating window");
+                        if grip.drag_started_by(egui::PointerButton::Primary) {
+                            ui.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                         }
-                        ui.add_enabled_ui(!locked, |ui| {
-                            ui.menu_button(
-                                format!("{} Dock", icon_text(IconId::PanelDock)),
-                                |ui| {
-                                    for dock in SurfaceDock::ALL {
-                                        if dock != SurfaceDock::Floating
-                                            && ui.button(dock.label()).clicked()
-                                        {
-                                            requested_dock = Some(dock);
-                                            ui.close();
-                                        }
-                                    }
-                                },
-                            );
-                        });
-                        if ui
-                            .button(format!("{} Hide", icon_text(IconId::Close)))
-                            .clicked()
-                        {
-                            hide_requested = true;
-                        }
+                        ui.label(egui::RichText::new(&title).small());
                     });
                     ui.separator();
-                    self.show_surface_content(ui, &surface.id);
-                },
-            );
-            if let Some(current) = self
-                .modular_surfaces
-                .iter_mut()
-                .find(|item| item.id == surface.id)
+                    let rect = ui.available_rect_before_wrap();
+                    self.show_dock_node(ui, &node, rect, &[], Some(&host));
+                    let (pointer, released) = ui
+                        .ctx()
+                        .input(|input| (input.pointer.hover_pos(), input.pointer.any_released()));
+                    native_pointer_released = released;
+                    if let Some(source) = self.surface_drag.as_deref() {
+                        let can_transfer = self.modular_surfaces.iter().any(|surface| {
+                            surface.id == source
+                                && ((surface.dock == SurfaceDock::Floating
+                                    && surface.floating_host_id() == host.as_str()
+                                    && !surface.locked)
+                                    || forge_gui_chrome::docking::can_join_native_host(
+                                        surface, &host,
+                                    ))
+                        });
+                        if can_transfer {
+                            let rects: Vec<_> = self
+                                .floating_leaf_rects
+                                .iter()
+                                .filter(|(id, _, _)| id == &host)
+                                .map(|(_, id, rect)| (id.clone(), *rect))
+                                .collect();
+                            let target = pointer.and_then(|point| {
+                                resolve_actionable_drop_target(point, &rects, source, &tree)
+                            });
+                            if let Some((target, zone, rect)) = target {
+                                let preview = drop_preview_rect(rect, zone);
+                                ui.painter().rect_filled(
+                                    preview,
+                                    4.0,
+                                    egui::Color32::from_rgba_unmultiplied(
+                                        theme.base.accent.0,
+                                        theme.base.accent.1,
+                                        theme.base.accent.2,
+                                        32,
+                                    ),
+                                );
+                                ui.painter().rect_stroke(
+                                    preview,
+                                    4.0,
+                                    egui::Stroke::new(2.0, color(theme.base.accent)),
+                                    egui::StrokeKind::Inside,
+                                );
+                                if released {
+                                    drop_requested = Some((target, zone));
+                                }
+                            }
+                        }
+                    }
+                });
+            if self.floating_drag_origin.as_deref() == Some(host.as_str())
+                && native_pointer_released
             {
-                current.locked = locked;
-                // Size is observed only; it must never be fed back to an open
-                // viewport's builder. Keep the last restored size when maximized.
-                if !native_response.maximized {
-                    if let Some(size) = native_response.inner_size {
-                        if size[0].is_finite()
-                            && size[1].is_finite()
-                            && size[0] >= 260.0
-                            && size[1] >= 180.0
-                        {
-                            current.preferred_size =
-                                [size[0].clamp(260.0, 4096.0), size[1].clamp(180.0, 4096.0)];
+                source_released = true;
+            }
+            if let Some((target, zone)) = drop_requested {
+                if let Some(source) = self.surface_drag.clone() {
+                    let previous_host = self
+                        .modular_surfaces
+                        .iter()
+                        .find(|item| item.id == source)
+                        .filter(|item| item.dock == SurfaceDock::Floating)
+                        .map(|item| item.floating_host_id().to_owned());
+                    let mut candidate = self.modular_surfaces.clone();
+                    let transitioned = candidate
+                        .iter_mut()
+                        .find(|item| item.id == source)
+                        .is_some_and(|item| {
+                            previous_host.as_deref() == Some(host.as_str())
+                                || item.join_floating_host(&host)
+                        });
+                    if transitioned {
+                        let mut proposal = self
+                            .floating_dock_trees
+                            .get(&host)
+                            .cloned()
+                            .unwrap_or_default();
+                        let committed = if previous_host.as_deref() == Some(host.as_str()) {
+                            proposal
+                                .move_relative_in_host(&source, &target, zone, &candidate, &host)
+                        } else {
+                            proposal.attach_in_host(&source, &target, zone, &candidate, &host)
+                        };
+                        if committed {
+                            self.floating_dock_trees.insert(host.clone(), proposal);
+                            if previous_host.as_deref() != Some(host.as_str()) {
+                                if let Some(old) = previous_host {
+                                    if let Some(tree) = self.floating_dock_trees.get_mut(&old) {
+                                        tree.detach(&source);
+                                    }
+                                } else {
+                                    self.dock_tree.detach(&source);
+                                }
+                                if let Some(updated) =
+                                    candidate.into_iter().find(|item| item.id == source)
+                                {
+                                    if let Some(item) = self
+                                        .modular_surfaces
+                                        .iter_mut()
+                                        .find(|item| item.id == source)
+                                    {
+                                        *item = updated;
+                                    }
+                                }
+                            }
+                            self.active_floating_surfaces
+                                .insert(host.clone(), source.clone());
+                            self.last_action =
+                                format!("Docked {source} in floating host {host}: {zone:?}");
+                            self.surface_drag = None;
+                            self.floating_drag_origin = None;
+                            self.surface_drag_preview = None;
                         }
                     }
                 }
-                if hide_requested {
-                    current.visible = false;
-                } else if let Some(dock) = requested_dock {
-                    let _ = current.move_to(dock);
-                } else if native_response.close_requested {
-                    // The window close control is not a document-close request.
-                    // Return the unchanged panel to its original dock.
-                    current.locked = false;
-                    let _ = current.redock();
-                    current.locked = locked;
-                    requested_dock = Some(current.dock);
+            }
+            for item in self.modular_surfaces.iter_mut().filter(|item| {
+                item.visible
+                    && item.dock == SurfaceDock::Floating
+                    && item.floating_host_id() == host.as_str()
+            }) {
+                if !native_response.maximized {
+                    if let Some([width, height]) = native_response.inner_size {
+                        if width.is_finite()
+                            && height.is_finite()
+                            && width >= 260.0
+                            && height >= 180.0
+                        {
+                            item.preferred_size =
+                                [width.clamp(260.0, 4096.0), height.clamp(180.0, 4096.0)];
+                        }
+                    }
+                }
+                if native_response.close_requested {
+                    let locked = item.locked;
+                    item.locked = false;
+                    let _ = item.redock();
+                    item.locked = locked;
                 }
             }
-            if let Some(dock) = requested_dock {
-                self.set_active_surface(dock, surface.id.clone());
-                self.last_action = format!("Redocked {} → {}", surface.title, dock.label());
+            if native_response.close_requested {
+                self.last_action = format!("Redocked floating group {host}");
             }
+        }
+        // Preserve the drag through the shell's subsequent drop dispatcher if
+        // the native source released over a measured main-window leaf.
+        if should_cancel_floating_drag(
+            source_released,
+            ctx.pointer_hover_pos(),
+            &self.dock_leaf_rects,
+        ) {
+            self.surface_drag = None;
+            self.floating_drag_origin = None;
+            self.surface_drag_preview = None;
         }
     }
 
@@ -827,63 +1067,46 @@ impl CreatorStudioLab {
         ctx: &egui::Context,
         shell_rect: egui::Rect,
     ) {
-        let Some(surface_id) = self.surface_drag.clone() else {
+        let Some(source) = self.surface_drag.clone() else {
             return;
         };
-
-        let locked = self
+        if self
             .modular_surfaces
             .iter()
-            .find(|surface| surface.id == surface_id)
-            .is_some_and(|surface| surface.locked);
-        if locked {
+            .find(|panel| panel.id == source)
+            .is_none_or(|panel| !panel.visible || panel.locked)
+        {
             self.surface_drag = None;
-            self.surface_drag_preview = None;
+            self.floating_drag_origin = None;
             return;
         }
-
         let pointer = ctx.pointer_hover_pos();
-        if let Some(pointer) = pointer {
-            let side_width = (shell_rect.width() * 0.20).clamp(96.0, 260.0);
-            let bottom_height = (shell_rect.height() * 0.20).clamp(90.0, 200.0);
-            let destination = if pointer.x <= shell_rect.left() + side_width {
-                SurfaceDock::Left
-            } else if pointer.x >= shell_rect.right() - side_width {
-                SurfaceDock::Right
-            } else if pointer.y >= shell_rect.bottom() - bottom_height {
-                SurfaceDock::Bottom
-            } else {
-                SurfaceDock::Center
-            };
-            self.surface_drag_preview = Some(destination);
-
-            let preview = match destination {
-                SurfaceDock::Left => egui::Rect::from_min_max(
-                    shell_rect.min,
-                    egui::pos2(shell_rect.left() + side_width, shell_rect.bottom()),
-                ),
-                SurfaceDock::Right => egui::Rect::from_min_max(
-                    egui::pos2(shell_rect.right() - side_width, shell_rect.top()),
-                    shell_rect.max,
-                ),
-                SurfaceDock::Bottom => egui::Rect::from_min_max(
-                    egui::pos2(shell_rect.left(), shell_rect.bottom() - bottom_height),
-                    shell_rect.max,
-                ),
-                SurfaceDock::Center | SurfaceDock::Floating => shell_rect.shrink2(egui::vec2(
-                    side_width.min(shell_rect.width() * 0.18),
-                    bottom_height.min(shell_rect.height() * 0.14),
-                )),
-            };
-
+        let target = pointer
+            .filter(|point| shell_rect.contains(*point))
+            .and_then(|point| {
+                resolve_actionable_drop_target(
+                    point,
+                    &self.dock_leaf_rects,
+                    &source,
+                    &self.dock_tree,
+                )
+            });
+        self.surface_drag_preview = target.as_ref().and_then(|(id, _, _)| {
+            self.modular_surfaces
+                .iter()
+                .find(|panel| panel.id == *id)
+                .map(|panel| panel.dock)
+        });
+        if let Some((_, zone, rect)) = &target {
             let accent = self.theme.base.accent;
+            let preview = drop_preview_rect(*rect, *zone);
             ui.painter().rect_filled(
-                preview.shrink(5.0),
+                preview,
                 self.theme.interaction.surface_radius.clamp(0.0, 20.0),
                 egui::Color32::from_rgba_unmultiplied(accent.0, accent.1, accent.2, 28),
             );
             ui.painter().rect_stroke(
-                preview.shrink(5.0),
+                preview,
                 self.theme.interaction.surface_radius.clamp(0.0, 20.0),
                 egui::Stroke::new(2.0, color(accent)),
                 egui::StrokeKind::Inside,
@@ -891,31 +1114,81 @@ impl CreatorStudioLab {
             ui.painter().text(
                 preview.center(),
                 egui::Align2::CENTER_CENTER,
-                format!("Dock {}", destination.label()),
+                match zone {
+                    DockDrop::Tab => "Group as tabs",
+                    DockDrop::Left => "Split left",
+                    DockDrop::Right => "Split right",
+                    DockDrop::Top => "Split above",
+                    DockDrop::Bottom => "Split below",
+                },
                 egui::FontId::proportional(14.0),
                 color(self.theme.base.text),
             );
         }
-
-        if !ctx.input(|input| input.pointer.primary_down()) {
-            let destination = if pointer.is_none() {
-                SurfaceDock::Floating
-            } else {
-                self.surface_drag_preview.unwrap_or(SurfaceDock::Center)
-            };
-            if let Some(surface) = self
+        if ctx.input(|input| input.pointer.primary_down()) {
+            return;
+        }
+        let was_floating = self
+            .modular_surfaces
+            .iter()
+            .any(|panel| panel.id == source && panel.dock == SurfaceDock::Floating);
+        // A different native viewport is responsible for its own pointer release.
+        if was_floating && pointer.is_none() {
+            return;
+        }
+        if let Some((destination, zone, _)) = target {
+            // No mutation when dropped onto itself: this is not a request to float.
+            if destination != source {
+                let destination_dock = self
+                    .modular_surfaces
+                    .iter()
+                    .find(|panel| panel.id == destination)
+                    .map(|panel| panel.dock);
+                if let Some(dock) = destination_dock {
+                    // Commit native-to-shell attach only when the tree accepts it;
+                    // a failed proposal leaves both model and catalog intact.
+                    let mut candidate = self.modular_surfaces.clone();
+                    if let Some(panel) = candidate.iter_mut().find(|panel| panel.id == source) {
+                        panel.move_to(dock);
+                    }
+                    let committed = if was_floating {
+                        self.dock_tree
+                            .attach(&source, &destination, zone, &candidate)
+                    } else {
+                        self.dock_tree
+                            .move_relative(&source, &destination, zone, &candidate)
+                    };
+                    if committed {
+                        if let Some(panel) = self
+                            .modular_surfaces
+                            .iter_mut()
+                            .find(|panel| panel.id == source)
+                        {
+                            panel.move_to(dock);
+                        }
+                        self.dock_tree.activate(&source);
+                        self.last_action =
+                            format!("Docked {source} relative to {destination}: {zone:?}");
+                    }
+                }
+            }
+        } else if pointer.is_some_and(|point| !shell_rect.contains(point)) && !was_floating {
+            // Dragging beyond the workspace detaches. Dropping on menus/title
+            // inside the shell cancels instead of silently changing the dock.
+            if let Some(panel) = self
                 .modular_surfaces
                 .iter_mut()
-                .find(|surface| surface.id == surface_id)
+                .find(|panel| panel.id == source)
             {
-                surface.visible = true;
-                let _ = surface.move_to(destination);
+                if panel.move_to(SurfaceDock::Floating) {
+                    self.dock_tree.detach(&source);
+                    self.last_action = format!("Detached {source}");
+                }
             }
-            self.set_active_surface(destination, surface_id.clone());
-            self.last_action = format!("Docked {surface_id} → {}", destination.label());
-            self.surface_drag = None;
-            self.surface_drag_preview = None;
         }
+        self.surface_drag = None;
+        self.floating_drag_origin = None;
+        self.surface_drag_preview = None;
     }
 
     fn update_toolbar_drag_drop(
@@ -1042,8 +1315,8 @@ impl CreatorStudioLab {
             ui.separator();
             ui.add_space(8.0);
             ui.strong("Modular GUI certification");
-            ui.label("Drag the ⠿ grip in any active surface title to re-dock it left, center, right, or bottom. Drag outside the application to detach it into a native OS window.");
-            ui.label("Surfaces sharing the same dock become a tab stack. Every surface can be hidden, detached, re-docked, resized, or locked. Closing a detached window restores its dock.");
+            ui.label("Drag a panel tab onto a leaf center to group as tabs, or onto an edge to split that leaf. Drag outside the workspace to float. Drag dividers to resize nested splits.");
+            ui.label("Floating surfaces can share native tabbed windows. Close the host to return its tabs to their previous docks. Native floating splits and cross-viewport gestures require Windows certification.");
             ui.label("The toolbar has its own ⠿ grip and may dock on any edge, float, lock, or disappear. Shell profiles can strip chrome for content-first applications.");
             ui.add_space(8.0);
             let _ = progress_bar(
@@ -1099,47 +1372,13 @@ impl CreatorStudioLab {
             }
         }
 
+        self.dock_leaf_rects.clear();
         if self.show_modular_surfaces {
-            let left_exists = self
-                .modular_surfaces
-                .iter()
-                .any(|surface| surface.visible && surface.dock == SurfaceDock::Left);
-            if left_exists {
-                egui::Panel::left("forge.modular.surfaces.left")
-                    .frame(egui::Frame::NONE)
-                    .resizable(!self.dock_group_locked(SurfaceDock::Left))
-                    .default_size(280.0)
-                    .size_range(220.0..=520.0)
-                    .show(root, |ui| self.show_dock_group(ui, SurfaceDock::Left));
-            }
-
-            let right_exists = self
-                .modular_surfaces
-                .iter()
-                .any(|surface| surface.visible && surface.dock == SurfaceDock::Right);
-            if right_exists {
-                egui::Panel::right("forge.modular.surfaces.right")
-                    .frame(egui::Frame::NONE)
-                    .resizable(!self.dock_group_locked(SurfaceDock::Right))
-                    .default_size(330.0)
-                    .size_range(240.0..=620.0)
-                    .show(root, |ui| self.show_dock_group(ui, SurfaceDock::Right));
-            }
-
-            let bottom_exists = self
-                .modular_surfaces
-                .iter()
-                .any(|surface| surface.visible && surface.dock == SurfaceDock::Bottom);
-            if bottom_exists {
-                egui::Panel::bottom("forge.modular.surfaces.bottom")
-                    .frame(egui::Frame::NONE)
-                    .resizable(!self.dock_group_locked(SurfaceDock::Bottom))
-                    .default_size(160.0)
-                    .size_range(110.0..=420.0)
-                    .show(root, |ui| self.show_dock_group(ui, SurfaceDock::Bottom));
-            }
+            // Validate incoming changes from panel menus, native-host closes,
+            // visibility and consumer registrations before rendering a frame.
+            self.dock_tree =
+                ModularDockTree::restored(Some(self.dock_tree.clone()), &self.modular_surfaces);
         }
-
         let center_frame = egui::Frame::new()
             .fill(forge_gui_chrome::opaque_background(self.theme.chrome.shell))
             .corner_radius(self.theme.interaction.surface_radius.clamp(0.0, 20.0) as u8)
@@ -1149,21 +1388,15 @@ impl CreatorStudioLab {
             .show(root, |ui| {
                 if self.layout.active_workspace == "workspace.dashboard" {
                     self.show_widget_gallery(ui);
-                } else {
-                    let center_exists = self.show_modular_surfaces
-                        && self
-                            .modular_surfaces
-                            .iter()
-                            .any(|surface| surface.visible && surface.dock == SurfaceDock::Center);
-                    if center_exists {
-                        self.show_dock_group(ui, SurfaceDock::Center);
-                    } else if self.show_modular_surfaces
-                        && self.modular_surfaces.iter().all(|surface| !surface.visible)
-                    {
-                        self.show_empty_workspace(ui);
+                } else if self.show_modular_surfaces {
+                    if let Some(node) = self.dock_tree.root.clone() {
+                        let rect = ui.available_rect_before_wrap();
+                        self.show_dock_node(ui, &node, rect, &[], None);
                     } else {
-                        self.show_application_workspace(ui);
+                        self.show_empty_workspace(ui);
                     }
+                } else {
+                    self.show_application_workspace(ui);
                 }
             });
 
@@ -1448,6 +1681,22 @@ impl CreatorStudioLab {
 impl eframe::App for CreatorStudioLab {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, SURFACE_STORAGE_KEY, &self.modular_surfaces);
+        eframe::set_value(
+            storage,
+            FLOATING_ACTIVE_STORAGE_KEY,
+            &self.active_floating_surfaces,
+        );
+        eframe::set_value(
+            storage,
+            FLOATING_TAB_ORDER_STORAGE_KEY,
+            &self.floating_tab_order,
+        );
+        eframe::set_value(storage, DOCK_TREE_STORAGE_KEY, &self.dock_tree);
+        eframe::set_value(
+            storage,
+            FLOATING_DOCK_TREES_STORAGE_KEY,
+            &self.floating_dock_trees,
+        );
     }
 
     fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -1478,7 +1727,7 @@ impl eframe::App for CreatorStudioLab {
             self.restore_standard_layout();
         }
 
-        let title_response = egui::Panel::top("forge.creator.project_title")
+        egui::Panel::top("forge.creator.project_title")
             .frame(egui::Frame::NONE)
             .exact_size(metrics.product_bar_height)
             .show(root, |ui| {
@@ -1489,14 +1738,10 @@ impl eframe::App for CreatorStudioLab {
                     Some("main"),
                     &self.theme,
                 )
-            })
-            .inner;
-        if title_response.drag_started {
-            self.window_snap.drag_active = true;
-        }
-        if let Some(action) = update_window_snap(&ctx, &mut self.window_snap) {
-            self.last_action = format!("Window snap: {action:?}");
-        }
+            });
+        // Do not synthesize maximization based on the monitor's (0,0) edge.
+        // A native host must own WM_NCHITTEST/Snap Layouts and DWM corners;
+        // the old pseudo-snap path could hide the undecorated title region.
 
         if self.show_menu_bar {
             let menu_theme = self.theme.clone();
@@ -1616,7 +1861,11 @@ impl eframe::App for CreatorStudioLab {
                                 self.show_interaction_settings_menu(ui, &ctx)
                             });
                             ui.separator();
-                            ui.checkbox(&mut self.window_snap.enabled, "Window edge snap");
+                            ui.add_enabled(
+                                false,
+                                egui::Label::new("Windows Snap Layouts (native host pending)"),
+                            )
+                            .on_hover_text("Synthetic edge snapping was disabled because it could hide the frameless title bar. Proper Windows hit testing is still required.");
                             if ui.button("Preferences…").clicked() {
                                 self.universal_suite.tab = UniversalTab::Settings;
                                 self.open_surface("surface.universal");
@@ -2148,6 +2397,126 @@ fn universal_tool_rail() -> RailModel {
     rail
 }
 
+/// Find a live tree leaf by measured bounds, with no shell-center fallback.
+/// A target is a panel identity and an actionable zone, not a legacy region.
+fn resolve_leaf_drop_target(
+    pointer: egui::Pos2,
+    leaves: &[(String, egui::Rect)],
+) -> Option<(String, DockDrop, egui::Rect)> {
+    leaves
+        .iter()
+        .filter_map(|(id, rect)| drop_zone(*rect, pointer).map(|zone| (id.clone(), zone, *rect)))
+        .min_by(|(_, _, a), (_, _, b)| {
+            (a.width() * a.height()).total_cmp(&(b.width() * b.height()))
+        })
+}
+
+/// An active tab can be split out of its own tab group by dropping against
+/// that leaf's edge. The underlying tree requires a *different* target ID;
+/// choose a peer from the same leaf, never another unrelated dock branch.
+fn peer_in_source_leaf(node: &DockNode, source: &str) -> Option<String> {
+    match node {
+        DockNode::Tabs { tabs, .. } => {
+            if tabs.iter().any(|id| id == source) {
+                tabs.iter().find(|id| id.as_str() != source).cloned()
+            } else {
+                None
+            }
+        }
+        DockNode::Split { first, second, .. } => {
+            if first.contains(source) {
+                peer_in_source_leaf(first, source)
+            } else if second.contains(source) {
+                peer_in_source_leaf(second, source)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// Keep a source-only tab leaf stationary while allowing a source tab in a
+/// multi-tab leaf to split relative to a peer. Center-on-self never detaches.
+fn resolve_actionable_drop_target(
+    pointer: egui::Pos2,
+    leaves: &[(String, egui::Rect)],
+    source: &str,
+    tree: &ModularDockTree,
+) -> Option<(String, DockDrop, egui::Rect)> {
+    let (target, zone, rect) = resolve_leaf_drop_target(pointer, leaves)?;
+    if target != source {
+        return Some((target, zone, rect));
+    }
+    if zone == DockDrop::Tab {
+        return None;
+    }
+    let peer = tree
+        .root
+        .as_ref()
+        .and_then(|node| peer_in_source_leaf(node, source))?;
+    Some((peer, zone, rect))
+}
+
+/// The native viewport draws before the shell commits drag/drop. Do not
+/// discard a valid main-window destination merely because the source released.
+fn should_cancel_floating_drag(
+    released: bool,
+    shell_pointer: Option<egui::Pos2>,
+    shell_leaves: &[(String, egui::Rect)],
+) -> bool {
+    released
+        && shell_pointer.is_none_or(|point| resolve_leaf_drop_target(point, shell_leaves).is_none())
+}
+
+/// Unique native-host buckets. Catalog ownership is not inferred from layout IDs.
+fn floating_groups(surfaces: &[ModularSurfaceState]) -> Vec<(String, Vec<ModularSurfaceState>)> {
+    let mut groups: Vec<(String, Vec<ModularSurfaceState>)> = Vec::new();
+    for panel in surfaces
+        .iter()
+        .filter(|p| p.visible && p.dock == SurfaceDock::Floating)
+    {
+        let host = panel.floating_host_id().to_owned();
+        if let Some((_, members)) = groups.iter_mut().find(|(id, _)| *id == host) {
+            members.push(panel.clone());
+        } else {
+            groups.push((host, vec![panel.clone()]));
+        }
+    }
+    groups
+}
+
+fn reconcile_floating_dock_trees(
+    mut saved: std::collections::BTreeMap<String, ModularDockTree>,
+    surfaces: &[ModularSurfaceState],
+) -> std::collections::BTreeMap<String, ModularDockTree> {
+    let mut trees = std::collections::BTreeMap::new();
+    for (host, _) in floating_groups(surfaces) {
+        let tree = ModularDockTree::restored_for_host(saved.remove(&host), surfaces, &host);
+        if tree.root.is_some() {
+            trees.insert(host, tree);
+        }
+    }
+    trees
+}
+
+/// Drop stale/duplicate tab IDs from older saves without changing the order
+/// of valid entries. Appends newly registered floating tabs deterministically.
+fn normalize_floating_tab_order(
+    surfaces: &[ModularSurfaceState],
+    saved: Vec<String>,
+) -> Vec<String> {
+    let mut order = Vec::new();
+    for id in saved
+        .into_iter()
+        .chain(surfaces.iter().map(|s| s.id.clone()))
+    {
+        if surfaces.iter().any(|surface| surface.id == id) && !order.contains(&id) {
+            order.push(id);
+        }
+    }
+    order
+}
+
 /// Restore user placement without clobbering new registered surfaces or duplicating old IDs.
 /// A persisted window may have moved off-screen; native viewport positioning stays
 /// the host's responsibility. This restores logical dock, size and visibility only.
@@ -2171,6 +2540,11 @@ fn restored_surfaces(
             existing.visible = old.visible;
             existing.locked = old.locked;
             existing.preferred_size = old.preferred_size;
+            existing.floating_host = if old.dock == SurfaceDock::Floating {
+                old.floating_host.filter(|host| !host.is_empty())
+            } else {
+                None
+            };
         }
     }
     defaults
@@ -2383,6 +2757,39 @@ mod surface_persistence_tests {
     }
 
     #[test]
+    fn floating_host_group_survives_layout_restore() {
+        let defaults = modular_surfaces();
+        let mut moved = defaults
+            .iter()
+            .find(|s| s.id == "surface.properties")
+            .unwrap()
+            .clone();
+        assert!(moved.join_floating_host("surface.activity"));
+        let restored = restored_surfaces(defaults, vec![moved]);
+        let properties = restored
+            .iter()
+            .find(|s| s.id == "surface.properties")
+            .unwrap();
+        assert_eq!(properties.dock, SurfaceDock::Floating);
+        assert_eq!(properties.floating_host_id(), "surface.activity");
+        assert_eq!(properties.last_dock, SurfaceDock::Right);
+    }
+
+    #[test]
+    fn restored_docked_surface_cannot_keep_stale_floating_host() {
+        let defaults = modular_surfaces();
+        let mut old = defaults
+            .iter()
+            .find(|s| s.id == "surface.content")
+            .unwrap()
+            .clone();
+        old.floating_host = Some("stale".into());
+        let restored = restored_surfaces(defaults, vec![old]);
+        let content = restored.iter().find(|s| s.id == "surface.content").unwrap();
+        assert_eq!(content.floating_host, None);
+    }
+
+    #[test]
     fn malformed_sizes_and_unknown_or_duplicate_panels_cannot_corrupt_catalog() {
         let defaults = modular_surfaces();
         let n = defaults.len();
@@ -2395,5 +2802,255 @@ mod surface_persistence_tests {
         assert!(restored
             .iter()
             .all(|surface| surface.preferred_size.iter().all(|v| v.is_finite())));
+    }
+
+    #[test]
+    fn dock_target_uses_actual_panel_bounds_instead_of_shell_quadrants() {
+        let a = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(160.0, 220.0));
+        let b = egui::Rect::from_min_size(egui::pos2(170.0, 10.0), egui::vec2(400.0, 220.0));
+        let leaves = vec![("content".to_owned(), a), ("canvas".to_owned(), b)];
+        assert_eq!(
+            resolve_leaf_drop_target(egui::pos2(12.0, 110.0), &leaves)
+                .unwrap()
+                .0,
+            "content"
+        );
+        let center = resolve_leaf_drop_target(egui::pos2(370.0, 120.0), &leaves).unwrap();
+        assert_eq!(center.0, "canvas");
+        assert_eq!(center.1, DockDrop::Tab);
+        assert_eq!(
+            resolve_leaf_drop_target(egui::pos2(800.0, 500.0), &leaves),
+            None
+        );
+    }
+
+    #[test]
+    fn active_tab_can_split_from_its_own_group_but_not_onto_itself() {
+        let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(300.0, 200.0));
+        let leaves = vec![("surface.content".to_owned(), rect)];
+        let tree = ModularDockTree {
+            version: 1,
+            root: Some(DockNode::Tabs {
+                tabs: vec!["surface.content".into(), "surface.properties".into()],
+                active: "surface.content".into(),
+            }),
+        };
+        let edge = resolve_actionable_drop_target(
+            egui::pos2(12.0, 110.0),
+            &leaves,
+            "surface.content",
+            &tree,
+        )
+        .expect("a grouped tab can split from its peer");
+        assert_eq!(edge.0, "surface.properties");
+        assert_eq!(edge.1, DockDrop::Left);
+        assert!(
+            resolve_actionable_drop_target(rect.center(), &leaves, "surface.content", &tree,)
+                .is_none()
+        );
+        let lone = ModularDockTree {
+            version: 1,
+            root: Some(DockNode::Tabs {
+                tabs: vec!["surface.content".into()],
+                active: "surface.content".into(),
+            }),
+        };
+        assert!(resolve_actionable_drop_target(
+            egui::pos2(12.0, 110.0),
+            &leaves,
+            "surface.content",
+            &lone,
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn peer_lookup_does_not_cross_nested_split_boundaries() {
+        let tree = DockNode::Split {
+            axis: SplitAxis::Horizontal,
+            ratio: 0.5,
+            first: Box::new(DockNode::Tabs {
+                tabs: vec!["source".into(), "peer".into()],
+                active: "source".into(),
+            }),
+            second: Box::new(DockNode::Tabs {
+                tabs: vec!["unrelated".into()],
+                active: "unrelated".into(),
+            }),
+        };
+        assert_eq!(
+            peer_in_source_leaf(&tree, "source").as_deref(),
+            Some("peer")
+        );
+        assert_eq!(peer_in_source_leaf(&tree, "unrelated"), None);
+        assert_eq!(peer_in_source_leaf(&tree, "unknown"), None);
+    }
+
+    #[test]
+    fn lab_bootstrap_and_restore_retain_single_authoritative_panel_instances() {
+        let surfaces = modular_surfaces();
+        let tree = ModularDockTree::restored(None, &surfaces);
+        let expected = surfaces
+            .iter()
+            .filter(|panel| panel.visible && panel.dock != SurfaceDock::Floating)
+            .count();
+        assert_eq!(tree.ordered_tabs().len(), expected);
+        let restored = ModularDockTree::restored(Some(tree.clone()), &surfaces);
+        assert_eq!(tree, restored);
+        let mut seen = std::collections::BTreeSet::new();
+        assert!(restored
+            .ordered_tabs()
+            .into_iter()
+            .all(|id| seen.insert(id)));
+    }
+
+    #[test]
+    fn shell_drop_creates_split_and_saved_restore_preserves_ratio() {
+        let surfaces = modular_surfaces();
+        let mut tree = ModularDockTree::restored(None, &surfaces);
+        assert!(tree.move_relative(
+            "surface.activity",
+            "surface.properties",
+            DockDrop::Left,
+            &surfaces
+        ));
+        assert!(tree.resize_split(&[], 0.41));
+        let saved = tree.clone();
+        assert_eq!(
+            ModularDockTree::restored(Some(saved.clone()), &surfaces),
+            saved
+        );
+        assert_eq!(
+            saved.ordered_tabs().len(),
+            surfaces
+                .iter()
+                .filter(|p| p.visible && p.dock != SurfaceDock::Floating)
+                .count()
+        );
+    }
+
+    #[test]
+    fn shell_drop_never_promotes_hidden_or_floating_panels_into_saved_tree() {
+        let mut surfaces = modular_surfaces();
+        let mut tree = ModularDockTree::restored(None, &surfaces);
+        let panel = surfaces
+            .iter_mut()
+            .find(|p| p.id == "surface.content")
+            .unwrap();
+        assert!(panel.move_to(SurfaceDock::Floating));
+        tree = ModularDockTree::restored(Some(tree), &surfaces);
+        assert!(!tree.has("surface.content"));
+        let panel = surfaces
+            .iter_mut()
+            .find(|p| p.id == "surface.properties")
+            .unwrap();
+        panel.visible = false;
+        tree = ModularDockTree::restored(Some(tree), &surfaces);
+        assert!(!tree.has("surface.properties"));
+    }
+
+    #[test]
+    fn floating_tab_order_discards_stale_ids_and_duplicates() {
+        let surfaces = modular_surfaces();
+        let order = normalize_floating_tab_order(
+            &surfaces,
+            vec![
+                "unknown".into(),
+                "surface.activity".into(),
+                "surface.activity".into(),
+                "surface.content".into(),
+            ],
+        );
+        assert_eq!(
+            order[..2].iter().map(String::as_str).collect::<Vec<_>>(),
+            vec!["surface.activity", "surface.content"],
+        );
+        assert_eq!(order.len(), surfaces.len());
+    }
+
+    #[test]
+    fn floating_host_trees_reconcile_saved_splits_and_remove_cross_host_duplicates() {
+        let mut surfaces = modular_surfaces();
+        for id in ["surface.content", "surface.properties", "surface.activity"] {
+            let panel = surfaces.iter_mut().find(|p| p.id == id).unwrap();
+            assert!(panel.join_floating_host("host.one"));
+        }
+        let mut original = reconcile_floating_dock_trees(Default::default(), &surfaces);
+        let tree = original.get_mut("host.one").unwrap();
+        assert!(tree.move_relative_in_host(
+            "surface.content",
+            "surface.properties",
+            DockDrop::Left,
+            &surfaces,
+            "host.one"
+        ));
+        let saved = tree.clone();
+        let restored = reconcile_floating_dock_trees(original, &surfaces);
+        assert_eq!(restored.get("host.one"), Some(&saved));
+        let panel = surfaces
+            .iter_mut()
+            .find(|p| p.id == "surface.content")
+            .unwrap();
+        assert!(panel.join_floating_host("host.two"));
+        let changed = reconcile_floating_dock_trees(restored, &surfaces);
+        assert!(!changed.get("host.one").unwrap().has("surface.content"));
+        assert!(changed.get("host.two").unwrap().has("surface.content"));
+        let total = changed
+            .values()
+            .map(|t| t.ordered_tabs().len())
+            .sum::<usize>();
+        assert_eq!(total, 3);
+    }
+
+    #[test]
+    fn floating_host_tree_removes_hidden_and_reopened_panel_without_ghost_split() {
+        let mut surfaces = modular_surfaces();
+        for id in ["surface.content", "surface.properties"] {
+            let panel = surfaces.iter_mut().find(|p| p.id == id).unwrap();
+            assert!(panel.join_floating_host("floating"));
+        }
+        let mut saved = reconcile_floating_dock_trees(Default::default(), &surfaces);
+        assert!(saved.get_mut("floating").unwrap().move_relative_in_host(
+            "surface.content",
+            "surface.properties",
+            DockDrop::Right,
+            &surfaces,
+            "floating"
+        ));
+        surfaces
+            .iter_mut()
+            .find(|p| p.id == "surface.content")
+            .unwrap()
+            .visible = false;
+        let without = reconcile_floating_dock_trees(saved, &surfaces);
+        assert_eq!(
+            without.get("floating").unwrap().ordered_tabs(),
+            vec!["surface.properties".to_owned()]
+        );
+        surfaces
+            .iter_mut()
+            .find(|p| p.id == "surface.content")
+            .unwrap()
+            .visible = true;
+        let reopened = reconcile_floating_dock_trees(without, &surfaces);
+        assert_eq!(reopened.get("floating").unwrap().ordered_tabs().len(), 2);
+    }
+
+    #[test]
+    fn native_release_preserves_valid_shell_drop_then_cancels_otherwise() {
+        let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(200.0, 150.0));
+        let leaves = vec![("content".to_owned(), rect)];
+        assert!(!should_cancel_floating_drag(
+            true,
+            Some(rect.center()),
+            &leaves
+        ));
+        assert!(should_cancel_floating_drag(
+            true,
+            Some(egui::pos2(700.0, 700.0)),
+            &leaves
+        ));
+        assert!(should_cancel_floating_drag(true, None, &leaves));
+        assert!(!should_cancel_floating_drag(false, None, &leaves));
     }
 }

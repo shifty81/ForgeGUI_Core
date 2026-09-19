@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+
 [dependencies]
 egui.workspace = true
 egui_dock.workspace = true
 forge_gui_core = { path = "../forge_gui_core" }
+forge_gui_chrome = { path = "../forge_gui_chrome" }

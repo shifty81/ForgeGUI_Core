@@ -11,6 +11,9 @@ use forge_gui_theme::ForgeTheme;
 use forge_gui_widgets::{add_default_icon_font, chrome_tab, panel_tab, tool_button, WidgetTone};
 use serde::{Deserialize, Serialize};
 
+/// Renderer-independent, versioned nested tab/split docking model.
+pub mod docking;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChromeBarKind {
     Product,
@@ -165,6 +168,10 @@ pub struct ModularSurfaceState {
     pub visible: bool,
     pub locked: bool,
     pub preferred_size: [f32; 2],
+    /// Stable identity of the native floating tab group. Older saved layouts
+    /// omit this field and automatically use the panel ID as their host.
+    #[serde(default)]
+    pub floating_host: Option<String>,
 }
 
 impl ModularSurfaceState {
@@ -181,6 +188,7 @@ impl ModularSurfaceState {
             visible: true,
             locked: false,
             preferred_size: [320.0, 320.0],
+            floating_host: None,
         }
     }
 
@@ -194,12 +202,30 @@ impl ModularSurfaceState {
             if self.dock != SurfaceDock::Floating {
                 self.last_dock = self.dock;
             }
+            if self.floating_host.is_none() {
+                self.floating_host = Some(self.id.clone());
+            }
         } else {
             self.last_dock = destination;
+            self.floating_host = None;
         }
         self.dock = destination;
         self.visible = true;
         true
+    }
+
+    /// Join an existing floating host without losing panel identity or its
+    /// most recent in-shell dock. The host is a window identity, not a panel.
+    pub fn join_floating_host(&mut self, host: &str) -> bool {
+        if host.is_empty() || !self.move_to(SurfaceDock::Floating) {
+            return false;
+        }
+        self.floating_host = Some(host.to_owned());
+        true
+    }
+
+    pub fn floating_host_id(&self) -> &str {
+        self.floating_host.as_deref().unwrap_or(&self.id)
     }
 
     /// Closing a native child window returns the same panel instance home.
@@ -360,6 +386,7 @@ pub fn restore_surface_layout(
             surface.visible = default.visible;
             surface.locked = default.locked;
             surface.preferred_size = default.preferred_size;
+            surface.floating_host = default.floating_host.clone();
             restored += 1;
         }
     }
@@ -825,7 +852,9 @@ pub fn show_native_surface<R>(
     let mut response = NativeSurfaceResponse::default();
     let mut builder = egui::ViewportBuilder::default()
         .with_title(title)
-        .with_decorations(true)
+        // All panel chrome is painted by ForgeGUI, never duplicated by the OS.
+        // Native resizing is restored with explicit border hit targets below.
+        .with_decorations(false)
         .with_transparent(false)
         .with_resizable(true)
         .with_min_inner_size([260.0, 180.0]);
@@ -873,6 +902,9 @@ pub fn show_native_surface<R>(
                         let _ = contents(ui);
                     });
                 });
+            // Frameless native viewports need explicit edge/corner resize hit
+            // targets; avoid issuing InnerSize during an interactive resize.
+            show_viewport_resize_handles(viewport_ui, 6.0);
         },
     );
     response
@@ -1233,6 +1265,37 @@ mod opaque_shell_tests {
             lifetime.opening_size("large", [9000.0, 9000.0]),
             Some([4096.0, 4096.0])
         );
+    }
+
+    #[test]
+    fn floating_group_preserves_each_panels_original_dock() {
+        let mut activity = ModularSurfaceState::new("activity", "Activity", SurfaceDock::Bottom);
+        let mut assets = ModularSurfaceState::new("assets", "Assets", SurfaceDock::Right);
+        assert!(activity.move_to(SurfaceDock::Floating));
+        assert!(assets.join_floating_host(activity.floating_host_id()));
+        assert_eq!(assets.floating_host_id(), "activity");
+        assert_eq!(activity.last_dock, SurfaceDock::Bottom);
+        assert_eq!(assets.last_dock, SurfaceDock::Right);
+        assert!(assets.redock());
+        assert_eq!(assets.dock, SurfaceDock::Right);
+        assert_eq!(assets.floating_host, None);
+        assert_eq!(activity.floating_host_id(), "activity");
+    }
+
+    #[test]
+    fn locked_panel_cannot_be_joined_into_a_floating_host() {
+        let mut state = ModularSurfaceState::new("locked", "Locked", SurfaceDock::Left);
+        state.locked = true;
+        assert!(!state.join_floating_host("another"));
+        assert_eq!(state.dock, SurfaceDock::Left);
+    }
+
+    #[test]
+    fn legacy_floating_layout_has_a_stable_default_window_identity() {
+        let mut state = ModularSurfaceState::new("legacy", "Legacy", SurfaceDock::Floating);
+        assert_eq!(state.floating_host_id(), "legacy");
+        assert!(state.join_floating_host("shared"));
+        assert_eq!(state.floating_host_id(), "shared");
     }
 
     #[test]
